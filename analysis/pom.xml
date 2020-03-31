@@ -1,0 +1,275 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<!--
+		maven configuration details
+
+		DO NOT MODIFY THIS FILE
+	-->
+	<modelVersion>4.0.0</modelVersion>
+
+	<groupId>ch.ethz.rse</groupId>
+	<artifactId>analysis</artifactId>
+	<version>0.0.1</version>
+	<packaging>jar</packaging>
+
+	<name>analysis</name>
+
+	<properties>
+		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+		<maven.compiler.source>1.8</maven.compiler.source>
+		<maven.compiler.target>${maven.compiler.source}</maven.compiler.target>
+		<surefire.version>3.0.0-M3</surefire.version>
+		<junit.jupiter.version>5.6.0</junit.jupiter.version>
+		<slf4jVersion>1.7.30</slf4jVersion>
+		<soot.java.home>/usr/lib/jvm/java-8-openjdk-amd64</soot.java.home>
+		<LD_LIBRARY_PATH>/usr/local/lib</LD_LIBRARY_PATH>
+		<java.policy>
+			-Djava.security.manager
+			-Djava.security.policy=${project.basedir}/target/classes/java.policy
+			<!-- Optional: Report all accesses relevant for security -->
+			<!-- -Djava.security.debug=access:stack -->
+		</java.policy>
+		<java.memory>3G</java.memory>
+		<java.args>
+			${java.policy}
+			-Xmx${java.memory}
+		</java.args>
+		<grading>true</grading>
+		<skip.surefire.tests>${skipTests}</skip.surefire.tests>
+	</properties>
+
+	<dependencies>
+		<!-- TESTING -->
+		<dependency>
+			<groupId>org.junit.jupiter</groupId>
+			<artifactId>junit-jupiter-engine</artifactId>
+			<version>${junit.jupiter.version}</version>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.junit.jupiter</groupId>
+			<artifactId>junit-jupiter-params</artifactId>
+			<version>${junit.jupiter.version}</version>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.hamcrest</groupId>
+			<artifactId>hamcrest-library</artifactId>
+			<version>2.2</version>
+			<scope>test</scope>
+		  </dependency>
+		<!-- LOGGING -->
+		<dependency>
+			<groupId>org.slf4j</groupId>
+			<artifactId>slf4j-api</artifactId>
+			<version>${slf4jVersion}</version>
+		</dependency>
+		<dependency>
+			<groupId>ch.qos.logback</groupId>
+			<artifactId>logback-classic</artifactId>
+			<version>1.2.3</version>
+		</dependency>
+		<!-- Apache Commons -->
+		<dependency>
+			<groupId>commons-io</groupId>
+			<artifactId>commons-io</artifactId>
+			<version>2.6</version>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.commons</groupId>
+			<artifactId>commons-lang3</artifactId>
+			<version>3.9</version>
+		</dependency>
+		<!-- SOOT -->
+		<dependency>
+			<groupId>ca.mcgill.sable</groupId>
+			<artifactId>soot</artifactId>
+			<version>4.0.0</version>
+		</dependency>
+		<!--APRON-->
+		<dependency>
+			<groupId>apron</groupId>
+			<artifactId>apron</artifactId>
+			<version>0.1</version>
+		</dependency>
+		<dependency>
+			<groupId>gmp</groupId>
+			<artifactId>gmp</artifactId>
+			<version>0.1</version>
+		</dependency>
+	</dependencies>
+
+	<build>
+		<resources>
+			<!-- Resources to be made available to program -->
+			<resource>
+				<directory>src/main/resources</directory>
+				<!-- Replace variables in resources -->
+				<filtering>true</filtering>
+			</resource>
+		</resources>
+
+		<plugins>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-dependency-plugin</artifactId>
+				<version>3.1.1</version>
+			</plugin>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-surefire-plugin</artifactId>
+				<version>${surefire.version}</version>
+				<configuration>
+					<argLine>${java.args} ${surefire.jacoco.args}</argLine>
+					<environmentVariables>
+						<LD_LIBRARY_PATH>${LD_LIBRARY_PATH}</LD_LIBRARY_PATH>
+						<grading>${grading}</grading>
+					</environmentVariables>
+					<skipTests>${skip.surefire.tests}</skipTests>
+				</configuration>
+			</plugin>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-failsafe-plugin</artifactId>
+				<version>${surefire.version}</version>
+				<configuration>
+					<argLine>${java.args} ${failsafe.jacoco.args}</argLine>
+					<environmentVariables>
+						<LD_LIBRARY_PATH>${LD_LIBRARY_PATH}</LD_LIBRARY_PATH>
+						<grading>${grading}</grading>
+					</environmentVariables>
+				</configuration>
+				<executions>
+					<execution>
+						<!-- Run during integration-test and verify -->
+						<goals>
+							<goal>integration-test</goal>
+							<goal>verify</goal>
+						</goals>
+					</execution>
+				</executions>
+			</plugin>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-site-plugin</artifactId>
+				<version>3.8.2</version>
+			</plugin>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-project-info-reports-plugin</artifactId>
+				<version>3.0.0</version>
+			</plugin>
+			<plugin>
+				<groupId>org.jacoco</groupId>
+				<artifactId>jacoco-maven-plugin</artifactId>
+				<version>0.8.5</version>
+				<executions>
+					<!-- Collect coverage for unit tests -->
+					<execution>
+						<id>before-unit-test-execution</id>
+						<goals>
+							<goal>prepare-agent</goal>
+						</goals>
+						<configuration>
+							<destFile>${project.build.directory}/jacoco-output/jacoco-unit-tests.exec</destFile>
+							<propertyName>surefire.jacoco.args</propertyName>
+						</configuration>
+					</execution>
+					<execution>
+						<id>after-unit-test-execution</id>
+						<phase>test</phase>
+						<goals>
+							<goal>report</goal>
+						</goals>
+						<configuration>
+							<dataFile>${project.build.directory}/jacoco-output/jacoco-unit-tests.exec</dataFile>
+							<outputDirectory>${project.reporting.outputDirectory}/jacoco-unit-test-coverage-report</outputDirectory>
+						</configuration>
+					</execution>
+					<!-- Collect coverage for integration tests -->
+					<execution>
+						<id>before-integration-test-execution</id>
+						<phase>pre-integration-test</phase>
+						<goals>
+							<goal>prepare-agent</goal>
+						</goals>
+						<configuration>
+							<destFile>${project.build.directory}/jacoco-output/jacoco-integration-tests.exec</destFile>
+							<propertyName>failsafe.jacoco.args</propertyName>
+						</configuration>
+					</execution>
+					<execution>
+						<id>after-integration-test-execution</id>
+						<phase>post-integration-test</phase>
+						<goals>
+							<goal>report</goal>
+						</goals>
+						<configuration>
+							<dataFile>${project.build.directory}/jacoco-output/jacoco-integration-tests.exec</dataFile>
+							<outputDirectory>${project.reporting.outputDirectory}/jacoco-integration-test-coverage-report</outputDirectory>
+						</configuration>
+					</execution>
+					<!-- Merge unit and integration coverage -->
+					<execution>
+						<id>merge-unit-and-integration</id>
+						<phase>post-integration-test</phase>
+						<goals>
+							<goal>merge</goal>
+						</goals>
+						<configuration>
+							<fileSets>
+								<fileSet>
+									<directory>${project.build.directory}/jacoco-output/</directory>
+									<includes>
+										<include>*.exec</include>
+									</includes>
+								</fileSet>
+							</fileSets>
+							<destFile>${project.build.directory}/jacoco-output/merged.exec</destFile>
+						</configuration>
+					</execution>
+					<execution>
+						<id>create-merged-report</id>
+						<phase>post-integration-test</phase>
+						<goals>
+							<goal>report</goal>
+						</goals>
+						<configuration>
+							<dataFile>${project.build.directory}/jacoco-output/merged.exec</dataFile>
+							<outputDirectory>${project.reporting.outputDirectory}/jacoco-merged-test-coverage-report</outputDirectory>
+						</configuration>
+					</execution>
+				</executions>
+			</plugin>
+			<plugin>
+				<!-- Add files to remove -->
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-clean-plugin</artifactId>
+				<version>3.1.0</version>
+				<configuration>
+					<filesets>
+						<fileset>
+							<directory>logs</directory>
+						</fileset>
+						<fileset>
+							<directory>sootOutput</directory>
+						</fileset>
+						<fileset>
+							<directory>results</directory>
+						</fileset>
+					</filesets>
+				</configuration>
+			</plugin>
+		</plugins>
+	</build>
+
+	<reporting>
+		<plugins>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-surefire-report-plugin</artifactId>
+				<version>${surefire.version}</version>
+			</plugin>
+		</plugins>
+	</reporting>
+
+</project>

@@ -1,0 +1,77 @@
+<!--
+	logging configuration controlling which information is logged where
+-->
+
+<configuration>
+
+	<!-- console -->
+	<appender name="CONSOLE"
+		class="ch.qos.logback.core.ConsoleAppender">
+		<target>System.out</target>
+		<encoder>
+			<pattern>%d{HH:mm:ss.SSS} [%thread] %-3level %logger{20}: %msg%n</pattern>
+		</encoder>
+		<filter class="ch.qos.logback.classic.filter.ThresholdFilter">
+			<level>INFO</level>
+		</filter>
+	</appender>
+
+	<!-- record current time (for name of logfiles -->
+	<timestamp key="bySecond" datePattern="yyyy-MM-dd-HH:mm:ss" />
+
+	<!-- logfile for everything -->
+	<appender name="ALL" class="ch.qos.logback.core.FileAppender">
+		<file>logs/${bySecond}/all.log</file>
+		<append>true</append>
+		<encoder>
+			<Pattern>%d{HH:mm:ss} [%thread] %-3level %logger{20}: %msg%n</Pattern>
+		</encoder>
+	</appender>
+
+	<!-- logfile for soot -->
+	<appender name="SOOT" class="ch.qos.logback.core.FileAppender">
+		<file>logs/${bySecond}/soot.log</file>
+		<append>true</append>
+		<encoder>
+			<Pattern>%d{HH:mm:ss} [%thread] %-3level %logger{20}: %msg%n</Pattern>
+		</encoder>
+	</appender>
+
+	<!-- logfile for numerical-analysis -->
+	<appender name="NUMERICAL" class="ch.qos.logback.core.FileAppender">
+		<file>logs/${bySecond}/numerical.log</file>
+		<append>true</append>
+		<encoder>
+			<Pattern>%d{HH:mm:ss} [%thread] %-3level %logger{20}: %msg%n</Pattern>
+		</encoder>
+	</appender>
+
+	<!-- logfile for information unrelated to the numerical analysis -->
+	<appender name="NON-NUMERICAL" class="ch.qos.logback.core.FileAppender">
+		<file>logs/${bySecond}/non-numerical.log</file>
+		<append>true</append>
+		<encoder>
+			<Pattern>%d{HH:mm:ss} [%thread] %-3level %logger{20}: %msg%n</Pattern>
+		</encoder>
+	</appender>
+
+	<!-- log everything to ALL, CONSOLE, NON-NUMERICAL -->
+	<root level="trace">
+		<appender-ref ref="ALL" />
+		<appender-ref ref="CONSOLE" />
+		<appender-ref ref="NON-NUMERICAL" />
+	</root>
+
+	<!-- log numerical to NUMERICAL and ALL (but nowhere else) -->
+	<logger name="ch.ethz.rse.numerical" level="trace" additivity="false">
+		<appender-ref ref="NUMERICAL" />
+		<appender-ref ref="ALL" />
+	</logger>
+
+	<!-- soot: only to SOOT and ALL (but nowhere else) -->
+	<logger name="soot" level="trace" additivity="false">
+		<appender-ref ref="SOOT" />
+		<appender-ref ref="ALL" />
+	</logger>
+
+</configuration>

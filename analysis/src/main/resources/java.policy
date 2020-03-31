@@ -1,0 +1,188 @@
+// Security policy blocking access to certain critical resources
+// DO NOT MODIFY THIS FILE
+
+////////////
+// GLOBAL //
+////////////
+
+grant {
+	permission java.io.FilePermission "${project.basedir}/target/test-classes", "read";
+	permission java.io.FilePermission "${project.basedir}/target/test-classes/-", "read";
+
+	permission java.io.FilePermission "javabase.txt", "read";
+	
+	// property permissions
+	permission java.util.PropertyPermission "*", "read";
+
+	// runtime permissions
+	permission java.lang.RuntimePermission "getenv.grading";
+	permission java.lang.RuntimePermission "modifyThread";
+};
+
+// maven (entry point)
+grant codeBase "file:${user.home}/.m2/repository/org/apache/maven/-" {
+	// file permissions
+	permission java.io.FilePermission "${project.basedir}/logs", "read,write";
+	permission java.io.FilePermission "${project.basedir}/logs/-", "read,write";
+	permission java.io.FilePermission "${project.basedir}/results", "read,write";
+	permission java.io.FilePermission "${project.basedir}/results/-", "read,write";
+	permission java.io.FilePermission "${project.basedir}/sootOutput", "read,write";
+	permission java.io.FilePermission "${project.basedir}/sootOutput/-", "read,write";
+	permission java.io.FilePermission "${project.basedir}/src/test/-", "read";
+	permission java.io.FilePermission "${project.basedir}/target/-", "read,write";
+
+	permission java.io.FilePermission "${user.home}/.m2/repository/-", "read";
+	permission java.io.FilePermission "${soot.java.home}/-", "read";
+	permission java.io.FilePermission "/usr/bin/ps","execute";
+	permission java.io.FilePermission "/bin/ps","execute";
+
+	// runtime permissions
+	permission java.lang.RuntimePermission "getClassLoader";
+	permission java.lang.RuntimePermission "createClassLoader";
+	permission java.lang.RuntimePermission "accessClassInPackage.jdk.internal.reflect";
+	permission java.lang.RuntimePermission "exitVM.0";
+	permission java.lang.RuntimePermission "loadLibrary.zip";
+	permission java.lang.RuntimePermission "accessDeclaredMembers";
+	permission java.lang.RuntimePermission "accessClassInPackage.sun.util.locale.provider";
+	permission java.lang.RuntimePermission "localeServiceProvider";
+	permission java.lang.RuntimePermission "setIO";
+
+	// property permissions
+	permission java.util.PropertyPermission	"*", "read,write";
+
+	// management permission
+	permission java.lang.management.ManagementPermission "monitor";
+
+	// reflection permission
+	permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
+
+	// logging permission
+	permission java.util.logging.LoggingPermission "control";
+
+	permission java.lang.RuntimePermission "loadLibrary.japron";
+	permission java.lang.RuntimePermission "loadLibrary.jgmp";
+};
+
+/////////////
+// PROJECT //
+/////////////
+
+grant codeBase "file:${project.basedir}/target/-" {
+	// file permissions
+	permission java.io.FilePermission "${project.basedir}/logs", "read,write";
+	permission java.io.FilePermission "${project.basedir}/logs/-", "read,write";
+	permission java.io.FilePermission "${project.basedir}/sootOutput", "read,write";
+	permission java.io.FilePermission "${project.basedir}/sootOutput/-", "read,write";
+	permission java.io.FilePermission "${project.basedir}/target/-", "read,write";
+	permission java.io.FilePermission "${user.home}/.m2/repository/-", "read";
+	permission java.io.FilePermission "${soot.java.home}/-", "read";
+
+	// runtime permissions
+	permission java.lang.RuntimePermission "loadLibrary.japron";
+	permission java.lang.RuntimePermission "loadLibrary.jgmp";
+};
+
+// only available for testing
+grant codeBase "file:${project.basedir}/target/test-classes/-" {
+	permission java.io.FilePermission "${project.basedir}/src/test/-", "read";
+
+	permission java.io.FilePermission "${project.basedir}/results", "read,write";
+	permission java.io.FilePermission "${project.basedir}/results/-", "read,write";
+};
+
+///////////////////////////
+// WIDELY USED LIBRARIES //
+///////////////////////////
+
+// junit (testing)
+grant codeBase "file:${user.home}/.m2/repository/org/junit/-" {
+	permission java.security.AllPermission;
+};
+grant codeBase "file:${user.home}/.m2/repository/apache/junit/-" {
+	permission java.security.AllPermission;
+};
+grant codeBase "file:${user.home}/.m2/repository/junit/-" {
+	permission java.security.AllPermission;
+};
+
+// jacoco (code coverage)
+grant codeBase "file:${user.home}/.m2/repository/org/jacoco/-" {
+	permission java.security.AllPermission;
+};
+
+// guava
+grant codeBase "file:${user.home}/.m2/repository/com/google/guava/-" {
+	permission java.io.FilePermission "${project.basedir}/-", "read,write";
+	permission java.io.FilePermission "${soot.java.home}/-", "read,write";
+};
+
+// apache commons
+grant codeBase "file:${user.home}/.m2/repository/org/apache/commons/-" {
+	permission java.io.FilePermission "${project.basedir}/-", "read,write";
+	permission java.io.FilePermission "${soot.java.home}/-", "read,write";
+};
+grant codeBase "file:${user.home}/.m2/repository/commons-io/-" {
+	permission java.io.FilePermission "${project.basedir}/-", "read,write";
+	permission java.io.FilePermission "${soot.java.home}/-", "read,write";
+};
+
+// logging
+grant codeBase "file:${user.home}/.m2/repository/ch/qos/logback/-" {
+	permission java.io.FilePermission "${project.basedir}/logs", "read,write";
+	permission java.io.FilePermission "${project.basedir}/logs/-", "read,write";
+	permission java.io.FilePermission "${project.basedir}/results", "read,write";
+	permission java.io.FilePermission "${project.basedir}/results/-", "read,write";
+	permission java.io.FilePermission "${project.basedir}/target/-", "read,write";
+};
+grant codeBase "file:${user.home}/.m2/repository/org/slf4j/-" {
+	permission java.io.FilePermission "${project.basedir}/logs", "read,write";
+	permission java.io.FilePermission "${project.basedir}/logs/-", "read,write";
+	permission java.io.FilePermission "${project.basedir}/results", "read,write";
+	permission java.io.FilePermission "${project.basedir}/results/-", "read,write";
+	permission java.io.FilePermission "${project.basedir}/target/-", "read,write";
+};
+grant codeBase "file:${user.home}/.m2/repository/log4j/-" {
+	permission java.io.FilePermission "${project.basedir}/logs", "read,write";
+	permission java.io.FilePermission "${project.basedir}/logs/-", "read,write";
+	permission java.io.FilePermission "${project.basedir}/results", "read,write";
+	permission java.io.FilePermission "${project.basedir}/results/-", "read,write";
+	permission java.io.FilePermission "${project.basedir}/target/-", "read,write";
+};
+
+////////////////////////
+// SPECIFIC LIBRARIES //
+////////////////////////
+
+grant codeBase "file:${user.home}/.m2/repository/ca/mcgill/-" {
+	permission java.io.FilePermission "${project.basedir}/sootOutput", "read,write";
+	permission java.io.FilePermission "${project.basedir}/sootOutput/-", "read,write";
+	// permission java.io.FilePermission "${project.basedir}/src/test/-", "read";
+	permission java.io.FilePermission "${project.basedir}/target/-",
+	"read,write";
+	permission java.io.FilePermission "${soot.java.home}/-", "read";
+
+	// property permissions
+	permission java.util.PropertyPermission "*", "read";
+};
+
+grant codeBase "file:${user.home}/.m2/repository/apron/-" {
+	permission java.lang.RuntimePermission "loadLibrary.japron";
+	permission java.lang.RuntimePermission "loadLibrary.jgmp";
+	permission java.lang.RuntimePermission "loadLibrary.zip";
+
+	permission java.lang.RuntimePermission "accessDeclaredMembers";
+	permission java.lang.RuntimePermission "accessClassInPackage.sun.util.locale.provider";
+	permission java.lang.RuntimePermission "localeServiceProvider";
+	permission java.lang.RuntimePermission "exitVM.0";
+};
+
+grant codeBase "file:${user.home}/.m2/repository/gmp/-" {
+	permission java.lang.RuntimePermission "loadLibrary.japron";
+	permission java.lang.RuntimePermission "loadLibrary.jgmp";
+	permission java.lang.RuntimePermission "loadLibrary.zip";
+	
+	permission java.lang.RuntimePermission "accessDeclaredMembers";
+	permission java.lang.RuntimePermission "accessClassInPackage.sun.util.locale.provider";
+	permission java.lang.RuntimePermission "localeServiceProvider";
+	permission java.lang.RuntimePermission "exitVM.0";
+};

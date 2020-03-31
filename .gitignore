@@ -1,0 +1,21 @@
+/analysis/target
+/analysis/sootOutput
+/analysis/logs
+/analysis/results
+/analysis/bin
+
+/analysis/hs_err_*.log
+
+# eclipse and vscode
+/**/.classpath
+/**/.project
+/**/.settings
+/**/__pycache__
+/**/.vscode
+
+# temporary files
+/**/*odp#
+
+/examples/outputs
+/examples/results.csv
+/examples/results.csv.summary

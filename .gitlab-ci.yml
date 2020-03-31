@@ -1,0 +1,63 @@
+# docker image
+image: ethsrilab/rse-project-2020:version-1.2
+
+# variables to be set in the build environment
+variables:
+  # --batch-mode: Run in non-interactive (batch) mode
+  MVN_FLAGS: --batch-mode
+
+stages:
+  - build
+  - unit-tests
+  - integration-tests
+  - deploy
+
+cache: # cache compilation output between jobs
+  key: ${CI_COMMIT_REF_SLUG}
+  paths:
+    # cache maven directory
+    - /root/.m2
+
+compile-analysis:
+  stage: build
+  script:
+    # operate in the analysis directory
+    - cd analysis
+    # compile the java code running the analysis
+    - mvn $MVN_FLAGS compile
+  artifacts:
+    paths:
+    - analysis/target
+
+unit-tests:
+  stage: unit-tests
+  script:
+    # operate in the analysis directory
+    - cd analysis
+    # run unit tests
+    - mvn $MVN_FLAGS test surefire-report:report
+  artifacts:
+    paths:
+      - analysis/target
+    reports:
+      junit:
+       - analysis/target/surefire-reports/TEST-*.xml
+
+integration-tests:
+  stage: integration-tests
+  coverage: '/\d+.\d+ \% covered/'
+  script:
+    # operate in the analysis directory
+    - cd analysis
+    # run integration tests (timeout after 10min to reduce load on GitLab)
+    - timeout --signal=9 15m mvn $MVN_FLAGS verify -Dskip.surefire.tests
+    # style report site
+    - mvn $MVN_FLAGS site -Dskip.surefire.tests
+    # report test coverage to console
+    - awk -F"," '{ instructions += $4 + $5; covered += $5 } END { print covered, "/", instructions, "instructions covered"; print 100*covered/instructions, "% covered" }' target/site/jacoco-merged-test-coverage-report/jacoco.csv
+  artifacts:
+    paths:
+      - analysis/target
+    reports:
+      junit:
+       - analysis/target/failsafe-reports/TEST-*.xml

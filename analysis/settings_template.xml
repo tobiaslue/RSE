@@ -1,0 +1,23 @@
+<settings xmlns="http://maven.apache.org/SETTINGS/1.0.0"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.0.0
+https://maven.apache.org/xsd/settings-1.0.0.xsd">
+	<profiles>
+		<profile>
+			<id>local-paths</id>
+			<properties>
+				<!--
+					To enable system-specific properties, update the entries
+					below, and copy this file to $HOME/.m2/settings.xml
+				 -->
+				 <soot.java.home>/usr/lib/jvm/java-8-openjdk-amd64</soot.java.home>
+				 <LD_LIBRARY_PATH>/usr/local/lib</LD_LIBRARY_PATH>
+				 <java.memory>8G</java.memory>
+			</properties>
+		</profile>
+	</profiles>
+
+	<activeProfiles>
+		<activeProfile>local-paths</activeProfile>
+	</activeProfiles>
+</settings>
