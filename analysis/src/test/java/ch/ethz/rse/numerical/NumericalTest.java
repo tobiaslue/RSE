@@ -14,8 +14,10 @@ import apron.MpqScalar;
 import ch.ethz.rse.VerificationProperty;
 import ch.ethz.rse.integration.VerifyTask;
 import ch.ethz.rse.pointer.PointsToInitializer;
+import ch.qos.logback.core.net.SyslogOutputStream;
 import fj.Unit;
 import fj.data.List;
+import jasmin.sym;
 import javassist.compiler.ast.IntConst;
 import pxb.android.arsc.Value;
 import soot.Local;
@@ -40,7 +42,7 @@ public class NumericalTest {
     UnitGraph g = SootHelper.getUnitGraph(m);
     PointsToInitializer pointsTo = new PointsToInitializer(sc);
     Chain<Local> locals = m.getActiveBody().getLocals();
-    NumericalAnalysis analysis = new NumericalAnalysis(m, g, pointsTo);
+    NumericalAnalysis analysis = new NumericalAnalysis(m, g, pointsTo, 0);
 
 
     public IntConstant getIntConsant(int i) {
@@ -60,6 +62,14 @@ public class NumericalTest {
         return null;
     }
 
+    public Local getIntLocal(Local start){
+        start = locals.getSuccOf(start);
+        while(!start.getType().toString().equals("int")){
+            start = locals.getSuccOf(start);
+        }
+        return start;
+    }
+
     @Test
     public void test_getTermOfLocal() {
         Local l = locals.getFirst();
@@ -73,16 +83,15 @@ public class NumericalTest {
     @Test
     public void test_getConstraint() throws ApronException {
         Local l1 = locals.getFirst();
-        Local l2 = locals.getSuccOf(l1);
-        Local l3 = locals.getSuccOf(l2);
-        Local l4 = locals.getSuccOf(l3);
+        Local l2 = getIntLocal(l1);
+        Local l3 = getIntLocal(l2);
+        Local l4 = getIntLocal(l3);
         String name2 = l2.getName();
         String name3 = l3.getName();
         String name4 = l4.getName();
         IntConstant cons1 = getIntConsant(0);
         IntConstant cons2 = getIntConsant(1);
        
-        
         int operator = Lincons1.EQ; 
         Lincons1 c = analysis.getConstraintConditional(l2, l3, operator);
         assertEquals(" 1" + name2 + " -1" + name3 + " = 0", c.toString());

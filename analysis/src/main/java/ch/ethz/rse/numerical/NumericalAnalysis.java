@@ -129,6 +129,24 @@ public class NumericalAnalysis extends ForwardBranchedFlowAnalysis<NumericalStat
 
 	}
 
+	public NumericalAnalysis(SootMethod method, UnitGraph g, PointsToInitializer pointsTo, int i) {
+		super(g);
+
+		this.method = method;
+		this.pointsTo = pointsTo;
+
+		this.env = new EnvironmentGenerator(method, this.pointsTo).getEnvironment();
+
+		// initialize counts for loop heads
+		for (Loop l : new LoopNestTree(g.getBody())) {
+			loopHeads.put(l.getHead(), new IntegerWrapper(0));
+		}
+
+		// perform analysis by calling into super-class
+	
+
+	}
+
 	
 	/**
 	 * Report unhandled instructions, types, cases, etc.
@@ -195,15 +213,20 @@ public class NumericalAnalysis extends ForwardBranchedFlowAnalysis<NumericalStat
 
 	public Lincons1 getConstraintConditional(Value op1, Value op2, int operator) {
 		Linexpr1 e = null;
-		Lincons1 c = null;
+		Lincons1 c = null;//new Lincons1(env);
 		if (op1 instanceof Local && op2 instanceof Local) {
 			Linterm1 t1 = getTermOfLocal(op1, 1);
 			Linterm1 t2 = getTermOfLocal(op2, -1);
+			for (Var i : env.getIntVars()){
+				logger.info(i.toString());
+			}
 			e = new Linexpr1(env, new Linterm1[] { t1, t2 }, new MpqScalar(0));
 		} else if (op1 instanceof Local || op2 instanceof Local) {
 			Linterm1 t = null;
 			int x = 0;
-			if (op1 instanceof Local) {
+			logger.info(op1.toString());
+			logger.info(op2.toString());
+			if (op1 instanceof Local) {				
 				t = getTermOfLocal(op1, 1);
 				x = -((IntConstant) op2).value;
 			} else {
@@ -216,8 +239,10 @@ public class NumericalAnalysis extends ForwardBranchedFlowAnalysis<NumericalStat
 			int y = ((IntConstant) op2).value;
 			e = new Linexpr1(env, new Linterm1[] {}, new MpqScalar(x - y));
 		}
+		if(e != null){
+			c = new Lincons1(operator, e);
 
-		c = new Lincons1(operator, e);
+		}
 		return c;
 	}
 
@@ -270,7 +295,7 @@ public class NumericalAnalysis extends ForwardBranchedFlowAnalysis<NumericalStat
 			e = new Linexpr1(env, new Linterm1[] {lLeft}, new MpqScalar(x+operation*y));	
 		}
 
-		c = new Lincons1(Lincons1.EQ ,e);
+		c = new Lincons1(Lincons1.EQ,e);
 		return c;
 	}
 

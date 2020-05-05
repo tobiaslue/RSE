@@ -9,14 +9,22 @@ import ch.ethz.rse.TrainStation;
 
 public class A_Numerical_Test {
 	public static void m1(int j, int k, int l) {
-        TrainStation s = new TrainStation(10);
-        TrainStation t = new TrainStation(10);
-        TrainStation y = new TrainStation(10);
-        t = s;
-        t = y;
-        
-        t.arrive(5);
-        y.arrive(j);
-        s.arrive(7);
+               TrainStation s = new TrainStation(10);
+               
+                if(j == k){
+                       j = 7;
+                       k = l;
+                       l = 8;
+               }else{
+                        l = 5;
+                        k = l;
+                        j = 3;
+               }
+
+               s.arrive(j);
+               s.arrive(k);
+
+               s.arrive(l);
+
 	}
 }
