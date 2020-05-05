@@ -9,8 +9,10 @@ import com.google.common.collect.Iterables;
 import apron.Environment;
 import ch.ethz.rse.pointer.PointsToInitializer;
 import ch.ethz.rse.pointer.TrainStationInitializer;
+import ch.qos.logback.classic.Logger;
 import soot.IntegerType;
 import soot.Local;
+import soot.SootHelper;
 import soot.SootMethod;
 import soot.Value;
 import soot.jimple.ParameterRef;
@@ -47,6 +49,15 @@ public class EnvironmentGenerator {
 
 		// FILL THIS OUT
 
+		Chain<Local> locals = method.getActiveBody().getLocals();
+
+
+		for (Local l : locals) {
+			if(SootHelper.isIntValue(l)){
+				ints.add(l.getName());
+			}
+		}
+		
 		String ints_arr[] = Iterables.toArray(this.ints, String.class);
 		String reals[] = {}; // we are not analyzing real numbers
 		this.env = new Environment(ints_arr, reals);

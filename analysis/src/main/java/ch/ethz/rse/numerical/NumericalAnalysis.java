@@ -2,6 +2,7 @@ package ch.ethz.rse.numerical;
 
 import java.util.HashMap;
 import java.util.List;
+import java.util.stream.IntStream;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -9,19 +10,28 @@ import org.slf4j.LoggerFactory;
 import apron.Abstract1;
 import apron.ApronException;
 import apron.Environment;
+import apron.Interval;
+import apron.Lincons0;
+import apron.Lincons1;
+import apron.Linexpr1;
+import apron.Linterm1;
 import apron.Manager;
 import apron.MpqScalar;
 import apron.Polka;
+import apron.Scalar;
 import apron.Tcons1;
 import apron.Texpr1BinNode;
 import apron.Texpr1CstNode;
 import apron.Texpr1Intern;
 import apron.Texpr1Node;
 import apron.Texpr1VarNode;
+import apron.Var;
 import ch.ethz.rse.pointer.PointsToInitializer;
 import ch.ethz.rse.pointer.TrainStationInitializer;
 import ch.ethz.rse.utils.Constants;
 import ch.ethz.rse.verify.EnvironmentGenerator;
+import ch.qos.logback.core.subst.Token.Type;
+import polyglot.ast.Branch;
 import soot.ArrayType;
 import soot.DoubleType;
 import soot.IntegerType;
@@ -30,9 +40,12 @@ import soot.RefType;
 import soot.SootMethod;
 import soot.Unit;
 import soot.Value;
+import soot.dava.toolkits.base.renamer.infoGatheringAnalysis;
 import soot.jimple.AddExpr;
 import soot.jimple.BinopExpr;
+import soot.jimple.ConditionExpr;
 import soot.jimple.DefinitionStmt;
+import soot.jimple.GotoStmt;
 import soot.jimple.IfStmt;
 import soot.jimple.IntConstant;
 import soot.jimple.MulExpr;
@@ -40,6 +53,7 @@ import soot.jimple.ParameterRef;
 import soot.jimple.Stmt;
 import soot.jimple.SubExpr;
 import soot.jimple.internal.AbstractBinopExpr;
+import soot.jimple.internal.JAddExpr;
 import soot.jimple.internal.JArrayRef;
 import soot.jimple.internal.JDivExpr;
 import soot.jimple.internal.JEqExpr;
@@ -50,7 +64,9 @@ import soot.jimple.internal.JInstanceFieldRef;
 import soot.jimple.internal.JInvokeStmt;
 import soot.jimple.internal.JLeExpr;
 import soot.jimple.internal.JLtExpr;
+import soot.jimple.internal.JMulExpr;
 import soot.jimple.internal.JNeExpr;
+import soot.jimple.internal.JSubExpr;
 import soot.jimple.internal.JVirtualInvokeExpr;
 import soot.jimple.internal.JimpleLocal;
 import soot.jimple.toolkits.annotation.logic.Loop;
@@ -110,8 +126,10 @@ public class NumericalAnalysis extends ForwardBranchedFlowAnalysis<NumericalStat
 		// perform analysis by calling into super-class
 		logger.info("Analyzing {} in {}", method.getName(), method.getDeclaringClass().getName());
 		doAnalysis();
+
 	}
 
+	
 	/**
 	 * Report unhandled instructions, types, cases, etc.
 	 * 
@@ -150,7 +168,6 @@ public class NumericalAnalysis extends ForwardBranchedFlowAnalysis<NumericalStat
 		// state of entry points into function
 		NumericalStateWrapper ret = NumericalStateWrapper.top(man, env);
 
-
 		return ret;
 	}
 
@@ -160,6 +177,7 @@ public class NumericalAnalysis extends ForwardBranchedFlowAnalysis<NumericalStat
 
 		logger.debug("join: ");
 		NumericalStateWrapper w3_new = w1.join(w2);
+		w3.set(w3_new.get());
 
 	}
 
@@ -169,13 +187,131 @@ public class NumericalAnalysis extends ForwardBranchedFlowAnalysis<NumericalStat
 		throw new UnsupportedOperationException();
 	}
 
+	public Linterm1 getTermOfLocal(Value v, int sign) {
+		String op1Var = ((Local) v).getName();
+		Linterm1 t = new Linterm1(op1Var, new MpqScalar(sign));
+		return t;
+	}
+
+	public Lincons1 getConstraintConditional(Value op1, Value op2, int operator) {
+		Linexpr1 e = null;
+		Lincons1 c = null;
+		if (op1 instanceof Local && op2 instanceof Local) {
+			Linterm1 t1 = getTermOfLocal(op1, 1);
+			Linterm1 t2 = getTermOfLocal(op2, -1);
+			e = new Linexpr1(env, new Linterm1[] { t1, t2 }, new MpqScalar(0));
+		} else if (op1 instanceof Local || op2 instanceof Local) {
+			Linterm1 t = null;
+			int x = 0;
+			if (op1 instanceof Local) {
+				t = getTermOfLocal(op1, 1);
+				x = -((IntConstant) op2).value;
+			} else {
+				t = getTermOfLocal(op2, -1);
+				x = ((IntConstant) op1).value;
+			}
+			e = new Linexpr1(env, new Linterm1[] { t }, new MpqScalar(x));
+		} else {
+			int x = ((IntConstant) op1).value;
+			int y = ((IntConstant) op2).value;
+			e = new Linexpr1(env, new Linterm1[] {}, new MpqScalar(x - y));
+		}
+
+		c = new Lincons1(operator, e);
+		return c;
+	}
+
+	public Lincons1 getConstraintUnOp(Value lhs, Value op) {
+		Linexpr1 e = null;
+		Lincons1 c = null;
+		Linterm1 lLeft = getTermOfLocal(lhs, -1);
+		Linterm1 lOp = null;
+		if (op instanceof IntConstant) {
+			int value = ((IntConstant) op).value;
+			e = new Linexpr1(env, new Linterm1[] { lLeft }, new MpqScalar(value));
+		} else if (op instanceof Local) {
+			lOp = getTermOfLocal(op, 1);
+			e = new Linexpr1(env, new Linterm1[] { lLeft, lOp }, new MpqScalar(0));
+		}
+		c = new Lincons1(Lincons1.EQ, e);
+		return c;
+	}
+
+	public Lincons1 getConstraintBinOp(Value lhs, Value op1, Value op2, int operation){
+		Linexpr1 e = null;
+		Lincons1 c = null;
+		Linterm1 lLeft = getTermOfLocal(lhs, -1);
+		Linterm1 lOp1 = null;
+		Linterm1 lOp2 = null;
+		int x = 0;
+		int y = 0;
+
+		if(op1 instanceof Local && op2 instanceof Local){ //Assignment to Binop
+			lOp1 = getTermOfLocal(op1, 1);
+			if(op1.equals(op2)){
+				lOp2 = getTermOfLocal(op2, 2*operation);
+				e = new Linexpr1(env, new Linterm1[] {lLeft, lOp2}, new MpqScalar(0));
+			} else {
+				lOp2 = getTermOfLocal(op2, operation);
+				e = new Linexpr1(env, new Linterm1[] {lLeft, lOp1, lOp2}, new MpqScalar(0));
+			}
+		} else if(op1 instanceof Local || op2 instanceof Local){
+			if(op1 instanceof Local){
+				lOp1 = getTermOfLocal(op1, 1);
+				x = ((IntConstant)op2).value;
+			} else{
+				lOp1 = getTermOfLocal(op2, operation);
+				x = operation*((IntConstant)op1).value;
+			}
+			e = new Linexpr1(env, new Linterm1[] {lLeft, lOp1}, new MpqScalar(operation*x));
+		} else{
+			x = ((IntConstant)op1).value;
+			y = ((IntConstant)op2).value;
+			e = new Linexpr1(env, new Linterm1[] {lLeft}, new MpqScalar(x+operation*y));	
+		}
+
+		c = new Lincons1(Lincons1.EQ ,e);
+		return c;
+	}
+
+	public Lincons1 getConstraintMul(Value lhs, Value op1, Value op2, Abstract1 factIn)
+			throws ApronException {
+		Linexpr1 e = null;
+		Lincons1 c = null;
+		Linterm1 lLeft = getTermOfLocal(lhs, -1);
+		Interval lOp1 = null;
+		Linterm1 lOp2 = null;
+		int x = 0; 
+		int y = 0;
+			
+		if(op1 instanceof Local && op2 instanceof Local){
+			lOp1 = factIn.getBound(man, ((Local)op2).getName());
+			lOp2 = new Linterm1(((Local)op2).getName(), lOp1);
+			e = new Linexpr1(env, new Linterm1[] {lLeft, lOp2}, new MpqScalar(0));
+		}else if(op1 instanceof Local || op2 instanceof Local){
+			if(op1 instanceof Local){
+				x = ((IntConstant)op2).value;
+				lOp2 = getTermOfLocal(op1, x);
+			} else{
+				x = ((IntConstant)op1).value;
+				lOp2 = getTermOfLocal(op2, x);
+			}
+			e = new Linexpr1(env, new Linterm1[] {lLeft, lOp2}, new MpqScalar(0));
+		}else{
+			x = ((IntConstant)op1).value;
+			y = ((IntConstant)op2).value;
+			e = new Linexpr1(env, new Linterm1[] {lLeft}, new MpqScalar(x*y));
+		}
+		
+		c = new Lincons1(Lincons1.EQ, e);
+		return c;
+	}
+
 	@Override
 	protected void flowThrough(NumericalStateWrapper inWrapper, Unit op, List<NumericalStateWrapper> fallOutWrappers,
 			List<NumericalStateWrapper> branchOutWrappers) {
 		logger.debug(inWrapper + " " + op + " => ?");
-
 		Stmt s = (Stmt) op;
-
 		// wrapper for state after running op, assuming we move to the next statement
 		assert fallOutWrappers.size() <= 1;
 		NumericalStateWrapper fallOutWrapper = null;
@@ -193,9 +329,9 @@ public class NumericalAnalysis extends ForwardBranchedFlowAnalysis<NumericalStat
 		}
 
 		try {
+
 			if (s instanceof DefinitionStmt) {
 				// handle assignment
-
 				DefinitionStmt sd = (DefinitionStmt) s;
 				Value left = sd.getLeftOp();
 				Value right = sd.getRightOp();
@@ -223,16 +359,53 @@ public class NumericalAnalysis extends ForwardBranchedFlowAnalysis<NumericalStat
 
 			} else if (s instanceof JIfStmt) {
 				// handle if
-
 				// FILL THIS OUT
+				Abstract1 factIn = inWrapper.get();
+				Value condition = ((JIfStmt) s).getCondition();
+				BinopExpr condExp = (BinopExpr) condition;
+				Value op1 = condExp.getOp1();
+				Value op2 = condExp.getOp2();
+
+				// In case something unexpected happens, we keep the incoming fact
+				fallOutWrapper.set(inWrapper.get());
+				branchOutWrapper.set(inWrapper.get());
+
+				Lincons1 cBranch = null;
+				Lincons1 cFall = null;
+
+				if (condition instanceof JEqExpr) {
+					cBranch = getConstraintConditional(op1, op2, Lincons1.EQ);
+					cFall = getConstraintConditional(op1, op2, Lincons1.DISEQ);
+				} else if (condition instanceof JGeExpr) {
+					cBranch = getConstraintConditional(op1, op2, Lincons1.SUPEQ);
+					cFall = getConstraintConditional(op2, op1, Lincons1.SUP);
+				} else if (condition instanceof JGtExpr) {
+					cBranch = getConstraintConditional(op1, op2, Lincons1.SUP);
+					cFall = getConstraintConditional(op2, op1, Lincons1.SUPEQ);
+				} else if (condition instanceof JLeExpr) {
+					cBranch = getConstraintConditional(op2, op1, Lincons1.SUPEQ);
+					cFall = getConstraintConditional(op1, op2, Lincons1.SUP);
+				} else if (condition instanceof JLtExpr) {
+					cBranch = getConstraintConditional(op2, op1, Lincons1.SUP);
+					cFall = getConstraintConditional(op1, op2, Lincons1.SUPEQ);
+				} else if (condition instanceof JNeExpr) {
+					cBranch = getConstraintConditional(op1, op2, Lincons1.DISEQ);
+					cFall = getConstraintConditional(op1, op2, Lincons1.EQ);
+				} else {
+					logger.info("Unhandled Condition in if Statement");
+				}
+
+				Abstract1 branchFact = factIn.meetCopy(man, cBranch);
+				Abstract1 fallFact = factIn.meetCopy(man, cFall);
+
+				branchOutWrapper.set(branchFact);
+				fallOutWrapper.set(fallFact);
 
 			} else if (s instanceof JInvokeStmt && ((JInvokeStmt) s).getInvokeExpr() instanceof JVirtualInvokeExpr) {
 				// handle invocations
-
 				JInvokeStmt jInvStmt = (JInvokeStmt) s;
 				handleInvoke(jInvStmt, fallOutWrapper);
 			}
-
 			// log outcome
 			if (fallOutWrapper != null) {
 				logger.debug(inWrapper.get() + " " + s + " =>[fallout] " + fallOutWrapper);
@@ -248,8 +421,8 @@ public class NumericalAnalysis extends ForwardBranchedFlowAnalysis<NumericalStat
 
 	public void handleInvoke(JInvokeStmt jInvStmt, NumericalStateWrapper fallOutWrapper) throws ApronException {
 		// FILL THIS OUT
+		Interval interval = new Interval();
 	}
-
 
 	/**
 	 *
@@ -262,6 +435,32 @@ public class NumericalAnalysis extends ForwardBranchedFlowAnalysis<NumericalStat
 	 */
 	private void handleDef(NumericalStateWrapper outWrapper, Value left, Value right) throws ApronException {
 		// FILL THIS OUT
-	}
+		Abstract1 factIn = outWrapper.get();
+		Lincons1 c = null;
 
+		if(right instanceof IntConstant || right instanceof Local){
+			c = getConstraintUnOp(left, right);
+			factIn.meet(man, c);
+		}else if(right instanceof BinopExpr){
+			BinopExpr binop = (BinopExpr) right;
+			Value op1 = binop.getOp1();
+			Value op2 = binop.getOp2();
+			if(right instanceof JAddExpr){
+				c = getConstraintBinOp(left, op1, op2, 1);
+			} else if(right instanceof JSubExpr){
+				c = getConstraintBinOp(left, op1, op2, -1);
+			} else if(right instanceof JMulExpr){
+				c = getConstraintMul(left, op1, op2, factIn);
+			}
+			factIn.meet(man, c);
+		}else {
+			logger.info("Other def");
+			Interval interval = new Interval();
+			interval.setTop();
+			outWrapper.set(new Abstract1(man, env, new String[] {((Local)left).getName()}, new Interval[]{interval}));
+		}
+
+		
+		outWrapper.set(factIn);
+	}
 }

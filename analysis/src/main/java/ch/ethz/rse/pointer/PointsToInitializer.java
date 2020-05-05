@@ -1,5 +1,6 @@
 package ch.ethz.rse.pointer;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.LinkedList;
@@ -15,13 +16,20 @@ import com.google.common.collect.Multimap;
 import ch.ethz.rse.utils.Constants;
 import soot.Local;
 import soot.SootClass;
+import soot.SootHelper;
 import soot.SootMethod;
 import soot.Unit;
 import soot.Value;
+import soot.ValueBox;
 import soot.jimple.IntConstant;
+import soot.jimple.InvokeExpr;
+import soot.jimple.internal.JAssignStmt;
 import soot.jimple.internal.JInvokeStmt;
+import soot.jimple.internal.JNewExpr;
 import soot.jimple.internal.JSpecialInvokeExpr;
+import soot.jimple.internal.JimpleLocalBox;
 import soot.jimple.spark.pag.Node;
+import soot.toolkits.graph.UnitGraph;
 
 public class PointsToInitializer {
 
@@ -62,11 +70,53 @@ public class PointsToInitializer {
 				// skip constructor of the class
 				continue;
 			}
+		
+			UnitGraph g = SootHelper.getUnitGraph(method);
+
+			
+
+			for(Unit u : g){
+				if(u instanceof JInvokeStmt){
+					JInvokeStmt s = (JInvokeStmt) u;
+					InvokeExpr e = s.getInvokeExpr();
+					if(e.getMethod().getName().equals("<init>")){
+						List<ValueBox> boxes = s.getUseBoxes();
+						JimpleLocalBox left = null;
+						
+						for(ValueBox b:boxes){
+							if(b instanceof JimpleLocalBox){
+								left = (JimpleLocalBox) b;
+							}
+						}
+				
+						Local base = (Local) left.getValue();
+						Collection<Node> nodes = pointsTo.getNodes(base);
+						Node node = nodes.iterator().next();
+						Value arg = e.getArg(0);
+						int x = ((IntConstant) arg).value;
+						TrainStationInitializer t = new TrainStationInitializer(s, left.hashCode(), x);
+						perMethod.put(method, t);
+						initializers.put(node, t);
+					}			
+				}
+				
+			}
 
 			// populate data structures
 			// FILL THIS OUT
 		}
 	}
+
+	public List<TrainStationInitializer> pointsTo(Local base){
+		Collection<Node> nodes = pointsTo.getNodes(base);
+		List<TrainStationInitializer> stations = new ArrayList<TrainStationInitializer>();
+		for(Node node : nodes){
+			stations.add(initializers.get(node));
+		}
+		
+		return stations;
+	}
+
 
 	// FILL THIS OUT
 }
