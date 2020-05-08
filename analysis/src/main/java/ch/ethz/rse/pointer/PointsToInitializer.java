@@ -3,6 +3,7 @@ package ch.ethz.rse.pointer;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -14,6 +15,7 @@ import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
 
 import ch.ethz.rse.utils.Constants;
+import ch.qos.logback.core.rolling.TriggeringPolicy;
 import soot.Local;
 import soot.SootClass;
 import soot.SootHelper;
@@ -117,6 +119,16 @@ public class PointsToInitializer {
 		return stations;
 	}
 
+	public Collection<TrainStationInitializer> getStationByMethod(SootMethod m){
+		Iterator it = perMethod.keySet().iterator();
+		Collection<TrainStationInitializer> stations = null;
+		while(it.hasNext()){
+			SootMethod key = (SootMethod)it.next();
+			if(key.equals(m)){
+				stations = perMethod.get(key);
 
-	// FILL THIS OUT
+			}
+		}
+		return stations;
+	}
 }

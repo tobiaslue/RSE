@@ -446,7 +446,6 @@ public class NumericalAnalysis extends ForwardBranchedFlowAnalysis<NumericalStat
 
 	public void handleInvoke(JInvokeStmt jInvStmt, NumericalStateWrapper fallOutWrapper) throws ApronException {
 		// FILL THIS OUT
-		Interval interval = new Interval();
 	}
 
 	/**

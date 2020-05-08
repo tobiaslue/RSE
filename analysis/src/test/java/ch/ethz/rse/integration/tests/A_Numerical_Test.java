@@ -8,23 +8,23 @@ import ch.ethz.rse.TrainStation;
 // NO_CRASH SAFE
 
 public class A_Numerical_Test {
-	public static void m1(int j, int k, int l) {
-               TrainStation s = new TrainStation(10);
-               
-                if(j == k){
-                       j = 7;
-                       k = l;
-                       l = 8;
-               }else{
-                        l = 5;
-                        k = l;
-                        j = 3;
-               }
+        public static void m1(int j, int k, int l) {
+                TrainStation s = new TrainStation(10);
+                TrainStation t = new TrainStation(10);
 
-               s.arrive(j);
-               s.arrive(k);
+                if (j == k) {
+                        j = 1;
+                        l = 3;
+                        k = 5;
 
-               s.arrive(l);
+                } else {
+                        l = 4;
+                        j = 2;
+                        k = 6;
+                }
 
-	}
+                t.arrive(j);
+                t.arrive(k);
+                t.arrive(l);
+        }
 }
