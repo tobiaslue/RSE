@@ -90,6 +90,8 @@ public class Verifier extends AVerifier {
 		List<SootMethod> methods = c.getMethods();
 		SootMethod m = methods.get(1);
 		UnitGraph g = SootHelper.getUnitGraph(m);
+		logger.info(g.toString());
+
 		NumericalAnalysis analysis = new NumericalAnalysis(m, g, pointsTo);
 
 		apron.Manager man = analysis.man;
@@ -111,14 +113,14 @@ public class Verifier extends AVerifier {
 						} else {
 							Linterm1 lt = analysis.getTermOfLocal(par, -1);
 							le = new Linexpr1(env, new Linterm1[] { lt }, new MpqScalar(0));
-							Lincons1 c = new Lincons1(Lincons1.SUPEQ, le);
+							Lincons1 c = new Lincons1(Lincons1.SUP, le);
 							logger.info(e.toString());
 							logger.info(c.toString());
 							Abstract1 factIn = before.get();
 							factIn.meet(man, c);
 							if (!factIn.isBottom(man)) {
 								return false;
-							} // arrive(x) 0< 0-x
+							} 
 						}
 
 					} catch (ApronException e1) {
@@ -251,7 +253,9 @@ public class Verifier extends AVerifier {
 		}
 
 		Collection<TrainStationInitializer> stations = pointsTo.getStationByMethod(m);
-
+		if(stations.isEmpty()){
+			return true;
+		}
 		for (TrainStationInitializer s : stations) {
 			Collection<Value> values = arrivesValue.get(s);
 
