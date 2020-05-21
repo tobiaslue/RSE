@@ -4,13 +4,15 @@ import ch.ethz.rse.TrainStation;
 
 // expected results:
 // TRACK_NON_NEGATIVE UNSAFE
-// TRACK_IN_RANGE SAFE
+// TRACK_IN_RANGE UNSAFE
 // NO_CRASH SAFE
 
-public class Basic_Test_Custom1 {
-	public static void m1(int j) {
+public class A_Loop_Test {
+	public static void m1(int j, int k) {
 		TrainStation s = new TrainStation(10);
-        j = -5;
-        s.arrive(j);
+		for(int i = 0; i < j; i++){
+            k = k + 1;
+        }
+        s.arrive(k);
 	}
 }

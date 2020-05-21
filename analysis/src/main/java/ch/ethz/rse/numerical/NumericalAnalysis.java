@@ -3,7 +3,11 @@ package ch.ethz.rse.numerical;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.IntStream;
+
+import com.google.common.collect.HashMultimap;
+import com.google.common.collect.Multimap;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -41,6 +45,7 @@ import soot.RefType;
 import soot.SootMethod;
 import soot.Unit;
 import soot.Value;
+import soot.ValueBox;
 import soot.dava.toolkits.base.renamer.infoGatheringAnalysis;
 import soot.jimple.AddExpr;
 import soot.jimple.BinopExpr;
@@ -49,6 +54,7 @@ import soot.jimple.DefinitionStmt;
 import soot.jimple.GotoStmt;
 import soot.jimple.IfStmt;
 import soot.jimple.IntConstant;
+import soot.jimple.InvokeExpr;
 import soot.jimple.MulExpr;
 import soot.jimple.ParameterRef;
 import soot.jimple.Stmt;
@@ -70,16 +76,22 @@ import soot.jimple.internal.JNeExpr;
 import soot.jimple.internal.JSubExpr;
 import soot.jimple.internal.JVirtualInvokeExpr;
 import soot.jimple.internal.JimpleLocal;
+import soot.jimple.internal.JimpleLocalBox;
 import soot.jimple.toolkits.annotation.logic.Loop;
 import soot.toolkits.graph.LoopNestTree;
 import soot.toolkits.graph.UnitGraph;
 import soot.toolkits.scalar.ForwardBranchedFlowAnalysis;
+import soot.util.HashMultiMap;
 
 public class NumericalAnalysis extends ForwardBranchedFlowAnalysis<NumericalStateWrapper> {
 
 	private static final Logger logger = LoggerFactory.getLogger(NumericalAnalysis.class);
 
 	private final SootMethod method;
+
+	public Multimap<TrainStationInitializer, JInvokeStmt> stationInvoke = HashMultimap.create();
+	public Map<JInvokeStmt, Abstract1> invokeAbstract = new HashMap<JInvokeStmt, Abstract1>();
+	public Map<JInvokeStmt, Value> invokeValue = new HashMap<JInvokeStmt, Value>();
 
 	private final PointsToInitializer pointsTo;
 
@@ -115,7 +127,7 @@ public class NumericalAnalysis extends ForwardBranchedFlowAnalysis<NumericalStat
 		super(g);
 		this.method = method;
 		this.pointsTo = pointsTo;
-		
+
 		this.env = new EnvironmentGenerator(method, this.pointsTo).getEnvironment();
 
 		// initialize counts for loop heads
@@ -129,7 +141,7 @@ public class NumericalAnalysis extends ForwardBranchedFlowAnalysis<NumericalStat
 
 	}
 
-	//Use this constructor for tests.... 
+	// Use this constructor for tests....
 	public NumericalAnalysis(SootMethod method, UnitGraph g, PointsToInitializer pointsTo, int i) {
 		super(g);
 
@@ -144,11 +156,9 @@ public class NumericalAnalysis extends ForwardBranchedFlowAnalysis<NumericalStat
 		}
 
 		// perform analysis by calling into super-class
-	
 
 	}
 
-	
 	/**
 	 * Report unhandled instructions, types, cases, etc.
 	 * 
@@ -193,10 +203,30 @@ public class NumericalAnalysis extends ForwardBranchedFlowAnalysis<NumericalStat
 	@Override
 	protected void merge(Unit succNode, NumericalStateWrapper w1, NumericalStateWrapper w2, NumericalStateWrapper w3) {
 		logger.debug("in merge: " + succNode);
-
+		NumericalStateWrapper w3_new = null;
 		logger.debug("join: ");
-		NumericalStateWrapper w3_new = w1.join(w2);
-		w3.set(w3_new.get());
+		if (loopHeadState.get(succNode) != null) {
+			logger.info("loop Head: " + Integer.toString(loopHeads.get(succNode).value));
+		}
+		IntegerWrapper count = loopHeads.get(succNode);
+
+		if (count.value >= WIDENING_THRESHOLD) {
+			w3_new = w1.widen(w2);
+			w3.set(w3_new.get());
+		} else {
+			count.value++;
+			w3_new = w1.join(w2);
+			w3.set(w3_new.get());
+			loopHeadState.put(succNode, w3_new);
+		}
+
+		logger.info("W1: " + w1.toString());
+		logger.info("W2: " + w2.toString());
+		logger.info("W3: " + w3.toString());
+		if (loopHeadState.get(succNode) != null) {
+			logger.info("loopHead: " + loopHeadState.get(succNode).toString());
+
+		}
 
 	}
 
@@ -214,7 +244,7 @@ public class NumericalAnalysis extends ForwardBranchedFlowAnalysis<NumericalStat
 
 	public Lincons1 getConstraintConditional(Value op1, Value op2, int operator) {
 		Linexpr1 e = null;
-		Lincons1 c = null;//new Lincons1(env);
+		Lincons1 c = null;// new Lincons1(env);
 		if (op1 instanceof Local && op2 instanceof Local) {
 			Linterm1 t1 = getTermOfLocal(op1, 1);
 			Linterm1 t2 = getTermOfLocal(op2, -1);
@@ -224,7 +254,7 @@ public class NumericalAnalysis extends ForwardBranchedFlowAnalysis<NumericalStat
 			int x = 0;
 			logger.info(op1.toString());
 			logger.info(op2.toString());
-			if (op1 instanceof Local) {				
+			if (op1 instanceof Local) {
 				t = getTermOfLocal(op1, 1);
 				x = -((IntConstant) op2).value;
 			} else {
@@ -237,7 +267,7 @@ public class NumericalAnalysis extends ForwardBranchedFlowAnalysis<NumericalStat
 			int y = ((IntConstant) op2).value;
 			e = new Linexpr1(env, new Linterm1[] {}, new MpqScalar(x - y));
 		}
-		if(e != null){
+		if (e != null) {
 			c = new Lincons1(operator, e);
 
 		}
@@ -260,7 +290,7 @@ public class NumericalAnalysis extends ForwardBranchedFlowAnalysis<NumericalStat
 		return c;
 	}
 
-	public Lincons1 getConstraintBinOp(Value lhs, Value op1, Value op2, int operation){
+	public Lincons1 getConstraintBinOp(Value lhs, Value op1, Value op2, int operation) {
 		Linexpr1 e = null;
 		Lincons1 c = null;
 		Linterm1 lLeft = getTermOfLocal(lhs, -1);
@@ -269,98 +299,96 @@ public class NumericalAnalysis extends ForwardBranchedFlowAnalysis<NumericalStat
 		int x = 0;
 		int y = 0;
 
-		if(op1 instanceof Local && op2 instanceof Local){ //Assignment to Binop
+		if (op1 instanceof Local && op2 instanceof Local) { // Assignment to Binop
 			lOp1 = getTermOfLocal(op1, 1);
-			if(op1.equals(op2)){
-				lOp2 = getTermOfLocal(op2, 2*operation);
-				e = new Linexpr1(env, new Linterm1[] {lLeft, lOp2}, new MpqScalar(0));
+			if (op1.equals(op2)) {
+				lOp2 = getTermOfLocal(op2, 2 * operation);
+				e = new Linexpr1(env, new Linterm1[] { lLeft, lOp2 }, new MpqScalar(0));
 			} else {
 				lOp2 = getTermOfLocal(op2, operation);
-				e = new Linexpr1(env, new Linterm1[] {lLeft, lOp1, lOp2}, new MpqScalar(0));
+				e = new Linexpr1(env, new Linterm1[] { lLeft, lOp1, lOp2 }, new MpqScalar(0));
 			}
-		} else if(op1 instanceof Local || op2 instanceof Local){
-			if(op1 instanceof Local){
+		} else if (op1 instanceof Local || op2 instanceof Local) {
+			if (op1 instanceof Local) {
 				lOp1 = getTermOfLocal(op1, 1);
-				x = ((IntConstant)op2).value;
-			} else{
+				x = ((IntConstant) op2).value;
+			} else {
 				lOp1 = getTermOfLocal(op2, operation);
-				x = operation*((IntConstant)op1).value;
+				x = operation * ((IntConstant) op1).value;
 			}
-			e = new Linexpr1(env, new Linterm1[] {lLeft, lOp1}, new MpqScalar(operation*x));
-		} else{
-			x = ((IntConstant)op1).value;
-			y = ((IntConstant)op2).value;
-			e = new Linexpr1(env, new Linterm1[] {lLeft}, new MpqScalar(x+operation*y));	
+			e = new Linexpr1(env, new Linterm1[] { lLeft, lOp1 }, new MpqScalar(operation * x));
+		} else {
+			x = ((IntConstant) op1).value;
+			y = ((IntConstant) op2).value;
+			e = new Linexpr1(env, new Linterm1[] { lLeft }, new MpqScalar(x + operation * y));
 		}
 
-		c = new Lincons1(Lincons1.EQ,e);
+		c = new Lincons1(Lincons1.EQ, e);
 		return c;
 	}
 
-	public Lincons1 getConstraintMul(Value lhs, Value op1, Value op2, Abstract1 factIn)
-			throws ApronException {
+	public Lincons1 getConstraintMul(Value lhs, Value op1, Value op2, Abstract1 factIn) throws ApronException {
 		Linexpr1 e = null;
 		Lincons1 c = null;
 		Linterm1 lLeft = getTermOfLocal(lhs, -1);
 		Interval lOp1 = null;
 		Linterm1 lOp2 = null;
-		int x = 0; 
+		int x = 0;
 		int y = 0;
-			
-		if(op1 instanceof Local && op2 instanceof Local){
-			lOp1 = factIn.getBound(man, ((Local)op2).getName());
-			lOp2 = new Linterm1(((Local)op2).getName(), lOp1);
-			e = new Linexpr1(env, new Linterm1[] {lLeft, lOp2}, new MpqScalar(0));
-		}else if(op1 instanceof Local || op2 instanceof Local){
-			if(op1 instanceof Local){
-				x = ((IntConstant)op2).value;
+
+		if (op1 instanceof Local && op2 instanceof Local) {
+			lOp1 = factIn.getBound(man, ((Local) op2).getName());
+			lOp2 = new Linterm1(((Local) op2).getName(), lOp1);
+			e = new Linexpr1(env, new Linterm1[] { lLeft, lOp2 }, new MpqScalar(0));
+		} else if (op1 instanceof Local || op2 instanceof Local) {
+			if (op1 instanceof Local) {
+				x = ((IntConstant) op2).value;
 				lOp2 = getTermOfLocal(op1, x);
-			} else{
-				x = ((IntConstant)op1).value;
+			} else {
+				x = ((IntConstant) op1).value;
 				lOp2 = getTermOfLocal(op2, x);
 			}
-			e = new Linexpr1(env, new Linterm1[] {lLeft, lOp2}, new MpqScalar(0));
-		}else{
-			x = ((IntConstant)op1).value;
-			y = ((IntConstant)op2).value;
-			e = new Linexpr1(env, new Linterm1[] {lLeft}, new MpqScalar(x*y));
+			e = new Linexpr1(env, new Linterm1[] { lLeft, lOp2 }, new MpqScalar(0));
+		} else {
+			x = ((IntConstant) op1).value;
+			y = ((IntConstant) op2).value;
+			e = new Linexpr1(env, new Linterm1[] { lLeft }, new MpqScalar(x * y));
 		}
-		
+
 		c = new Lincons1(Lincons1.EQ, e);
 		return c;
 	}
 
 	// public Abstract1 updateFactUnOp (Abstract1 fact, Local left, Local right){
-	// 	Linterm1 lOp = getTermOfLocal(left, 1);		
-	// 	Linterm1 rOp = getTermOfLocal(, 1);
+	// Linterm1 lOp = getTermOfLocal(left, 1);
+	// Linterm1 rOp = getTermOfLocal(, 1);
 
-	// 	List<Lincons1> newCons = new LinkedList<>();
-	// 	Abstract1 newFact = null;
-	// 	try {
-	// 		Lincons1[] cons = fact.toLincons(man);
-	// 		Linterm1[] terms = null;
-	// 		for(Lincons1 c:cons){
-	// 			terms = c.getLinterms();
-	// 			for(Linterm1 t:terms){
-	// 				if(lt.equals(t)){
-	// 					break;
-	// 				}
-	// 			}
-	// 			newCons.add(c);
-	// 		}
-	// 		int size = newCons.size();
-	// 		Lincons1[] consArray = new Lincons1[size];
-	// 		for(int i = 0; i < size; i++){
-	// 			consArray[i] = newCons.get(i);
-	// 		}
-	// 		newFact = new Abstract1(man, consArray);
-	// 	} catch (ApronException e) {
-	// 		logger.info("Cant get constraints from local");
-	// 		e.printStackTrace();
-	// 	}
-		
-		
-	// 	return newFact;
+	// List<Lincons1> newCons = new LinkedList<>();
+	// Abstract1 newFact = null;
+	// try {
+	// Lincons1[] cons = fact.toLincons(man);
+	// Linterm1[] terms = null;
+	// for(Lincons1 c:cons){
+	// terms = c.getLinterms();
+	// for(Linterm1 t:terms){
+	// if(lt.equals(t)){
+	// break;
+	// }
+	// }
+	// newCons.add(c);
+	// }
+	// int size = newCons.size();
+	// Lincons1[] consArray = new Lincons1[size];
+	// for(int i = 0; i < size; i++){
+	// consArray[i] = newCons.get(i);
+	// }
+	// newFact = new Abstract1(man, consArray);
+	// } catch (ApronException e) {
+	// logger.info("Cant get constraints from local");
+	// e.printStackTrace();
+	// }
+
+	// return newFact;
 	// }
 
 	@Override
@@ -472,67 +500,96 @@ public class NumericalAnalysis extends ForwardBranchedFlowAnalysis<NumericalStat
 		}
 	}
 
-	public void handleInvoke(JInvokeStmt jInvStmt, NumericalStateWrapper fallOutWrapper) throws ApronException {
-		// FILL THIS OUT
+	public void handleInvoke(JInvokeStmt jInvStmt1, NumericalStateWrapper fallOutWrapper) throws ApronException {
+		JInvokeStmt jInvStmt = (JInvokeStmt) jInvStmt1.clone();
+		
+		invokeAbstract.put(jInvStmt, fallOutWrapper.copy().get());
+
+		InvokeExpr e = jInvStmt.getInvokeExpr();
+		Value par = e.getUseBoxes().get(0).getValue();
+		invokeValue.put(jInvStmt, par);
+		
+		List<ValueBox> boxes = e.getUseBoxes();
+		JimpleLocalBox left = null;
+		for (ValueBox b : boxes) {
+			if (b instanceof JimpleLocalBox) {
+				left = (JimpleLocalBox) b;
+			}
+		}
+
+		Local base = (Local) left.getValue();
+		List<TrainStationInitializer> stations = pointsTo.pointsTo(base);
+		logger.info(stations.toString());
+		for (TrainStationInitializer t : stations) {
+			stationInvoke.put(t, jInvStmt);
+		}
+
 	}
 
-
-	public Abstract1 getFact(Abstract1 fact, Local lhs, Value op1, Value op2, int operation){
+	public Abstract1 getFact(Abstract1 fact, Local lhs, Value op1, Value op2, int operation) {
 		String varLeft = lhs.getName();
 		try {
 			Abstract1 factOut = new Abstract1(man, env);
-			if(op1 instanceof Local && op2 instanceof Local){
+			if (op1 instanceof Local && op2 instanceof Local) {
 				Local op1Local = (Local) op1;
 				Local op2Local = (Local) op2;
-				if(op1Local.equals(lhs) && op2Local.equals(lhs)){
+				if (op1Local.equals(lhs) && op2Local.equals(lhs)) {
 					Linterm1 t = null;
-					if(operation == 1){
+					Linexpr1 e = null;
+					if (operation == 1) {
 						t = new Linterm1(op1Local.getName(), new MpqScalar(1, 2));
-					}else{
+						e = new Linexpr1(env, new Linterm1[] { t }, new MpqScalar(0));
+						factOut = fact.substituteCopy(man, varLeft, e, factOut);
+					} else {
 						t = new Linterm1(op1Local.getName(), new MpqScalar(0));
+						e = new Linexpr1(env, new Linterm1[] { t }, new MpqScalar(0));
+						factOut = fact.forgetCopy(man, varLeft, false);
+						factOut.assign(man, varLeft, e, factOut);
 					}
-					Linexpr1 e = new Linexpr1(env, new Linterm1[]{t}, new MpqScalar(0));
-					logger.info(e.toString());
-					factOut = fact.substituteCopy(man, varLeft, e, factOut);
-					logger.info(lhs.toString() + " = " + op1.toString() + " " + Integer.toString(operation) + " " + op2.toString());
-				} else if(op1Local.equals(lhs) || op2Local.equals(lhs)){
+					logger.info(lhs.toString() + " = " + op1.toString() + " " + Integer.toString(operation) + " "
+							+ op2.toString());
+				} else if (op1Local.equals(lhs) || op2Local.equals(lhs)) {
 					Linterm1 t1 = new Linterm1(op1Local.getName(), new MpqScalar(1));
 					Linterm1 t2 = new Linterm1(op2Local.getName(), new MpqScalar(operation));
-					Linexpr1 e = new Linexpr1(env, new Linterm1[]{t1, t2}, new MpqScalar(0));
+					Linexpr1 e = new Linexpr1(env, new Linterm1[] { t1, t2 }, new MpqScalar(0));
 					factOut = fact.substituteCopy(man, varLeft, e, factOut);
 				} else {
 					Linterm1 t1 = new Linterm1(op1Local.getName(), new MpqScalar(1));
 					Linterm1 t2 = new Linterm1(op2Local.getName(), new MpqScalar(operation));
-					Linexpr1 e = new Linexpr1(env, new Linterm1[]{t1, t2}, new MpqScalar(0));
-					factOut.assign(man, varLeft, e, fact);
-					logger.info(lhs.toString() + " = " + op1.toString() + " " + Integer.toString(operation) + " " + op2.toString());
+					Linexpr1 e = new Linexpr1(env, new Linterm1[] { t1, t2 }, new MpqScalar(0));
+					factOut = fact.forgetCopy(man, varLeft, false);
+					factOut.assign(man, varLeft, e, factOut);
+					logger.info(lhs.toString() + " = " + op1.toString() + " " + Integer.toString(operation) + " "
+							+ op2.toString());
 				}
-			} else if(op1 instanceof Local || op2 instanceof Local){
+			} else if (op1 instanceof Local || op2 instanceof Local) {
 				Local l = null;
 				int x = 0;
-				if(op1 instanceof Local){
+				if (op1 instanceof Local) {
 					l = (Local) op1;
 					x = ((IntConstant) op2).value;
-				}else{
+				} else {
 					l = (Local) op2;
 					x = ((IntConstant) op1).value;
 				}
-				if(l.equals(lhs)){
+				if (l.equals(lhs)) {
 					Linterm1 t = new Linterm1(l.getName(), new MpqScalar(1));
-					Linexpr1 e = new Linexpr1(env, new Linterm1[]{t}, new MpqScalar(operation*x));
+					Linexpr1 e = new Linexpr1(env, new Linterm1[] { t }, new MpqScalar(-1 * operation * x));
 					factOut = fact.substituteCopy(man, varLeft, e, factOut);
 					logger.info(lhs.toString() + " = " + op1.toString() + " + " + op2.toString());
-				}else{
+				} else {
 					Linterm1 t = new Linterm1(l.getName(), new MpqScalar(1));
-					Linexpr1 e = new Linexpr1(env, new Linterm1[]{t}, new MpqScalar(operation*x));
-					factOut.assign(man, varLeft, e, fact);
+					Linexpr1 e = new Linexpr1(env, new Linterm1[] { t }, new MpqScalar(operation * x));
+					factOut = fact.forgetCopy(man, varLeft, false);
+					factOut.assign(man, varLeft, e, factOut);
 					logger.info(lhs.toString() + " = " + op1.toString() + " + " + op2.toString());
 				}
 			} else {
-				int x = ((IntConstant)op1).value;
-				int y = ((IntConstant)op2).value;
-				Linexpr1 e = new Linexpr1(env, new Linterm1[]{}, new MpqScalar(x+ operation*y));
-				factOut = fact.assignCopy(man, varLeft, e, fact);
+				int x = ((IntConstant) op1).value;
+				int y = ((IntConstant) op2).value;
+				Linexpr1 e = new Linexpr1(env, new Linterm1[] {}, new MpqScalar(x + operation * y));
+				factOut = fact.forgetCopy(man, varLeft, false);
+				factOut.assign(man, varLeft, e, factOut);
 			}
 			return factOut;
 		} catch (ApronException e) {
@@ -541,49 +598,52 @@ public class NumericalAnalysis extends ForwardBranchedFlowAnalysis<NumericalStat
 		}
 	}
 
-	public Abstract1 getFactMul(Abstract1 fact, Local lhs, Value op1, Value op2){
+	public Abstract1 getFactMul(Abstract1 fact, Local lhs, Value op1, Value op2) {
 		String varLeft = lhs.getName();
 		try {
 			Abstract1 factOut = new Abstract1(man, env);
-			if(op1 instanceof Local && op2 instanceof Local){
+			if (op1 instanceof Local && op2 instanceof Local) {
 				Local op1Local = (Local) op1;
 				Local op2Local = (Local) op2;
-				
-				if(op1Local.equals(lhs) || op2Local.equals(lhs)){
+
+				if (op1Local.equals(lhs) || op2Local.equals(lhs)) {
 					Interval i = fact.getBound(man, op1Local.getName());
 					Linterm1 t = new Linterm1(op2Local.getName(), i);
-					Linexpr1 e = new Linexpr1(env, new Linterm1[]{t}, new MpqScalar(0));
+					Linexpr1 e = new Linexpr1(env, new Linterm1[] { t }, new MpqScalar(0));
 					factOut = fact.substituteCopy(man, varLeft, e, factOut);
 				} else {
 					Interval i = fact.getBound(man, op1Local.getName());
 					Linterm1 t = new Linterm1(op2Local.getName(), i);
-					Linexpr1 e = new Linexpr1(env, new Linterm1[]{t}, new MpqScalar(0));
-					factOut = fact.assignCopy(man, varLeft, e, fact);
+					Linexpr1 e = new Linexpr1(env, new Linterm1[] { t }, new MpqScalar(0));
+					factOut = fact.forgetCopy(man, varLeft, false);
+					factOut.assign(man, varLeft, e, factOut);
 				}
-			} else if(op1 instanceof Local || op2 instanceof Local){
+			} else if (op1 instanceof Local || op2 instanceof Local) {
 				Local l = null;
 				int x = 0;
-				if(op1 instanceof Local){
+				if (op1 instanceof Local) {
 					l = (Local) op1;
 					x = ((IntConstant) op2).value;
-				}else{
+				} else {
 					l = (Local) op2;
 					x = ((IntConstant) op1).value;
 				}
-				if(l.equals(lhs)){
+				if (l.equals(lhs)) {
 					Linterm1 t = new Linterm1(l.getName(), new MpqScalar(1));
-					Linexpr1 e = new Linexpr1(env, new Linterm1[]{t}, new MpqScalar(x));
+					Linexpr1 e = new Linexpr1(env, new Linterm1[] { t }, new MpqScalar(x));
 					factOut = fact.substituteCopy(man, varLeft, e, factOut);
-				}else{
+				} else {
 					Linterm1 t = new Linterm1(l.getName(), new MpqScalar(1));
-					Linexpr1 e = new Linexpr1(env, new Linterm1[]{t}, new MpqScalar(x));
-					factOut = fact.assignCopy(man, varLeft, e, fact);
+					Linexpr1 e = new Linexpr1(env, new Linterm1[] { t }, new MpqScalar(x));
+					factOut = fact.forgetCopy(man, varLeft, false);
+					factOut.assign(man, varLeft, e, factOut);
 				}
 			} else {
-				int x = ((IntConstant)op1).value;
-				int y = ((IntConstant)op2).value;
-				Linexpr1 e = new Linexpr1(env, new Linterm1[]{}, new MpqScalar(x*y));
-				factOut = fact.assignCopy(man, varLeft, e, fact);
+				int x = ((IntConstant) op1).value;
+				int y = ((IntConstant) op2).value;
+				Linexpr1 e = new Linexpr1(env, new Linterm1[] {}, new MpqScalar(x * y));
+				factOut = fact.forgetCopy(man, varLeft, false);
+				factOut.assign(man, varLeft, e, factOut);
 			}
 			return factOut;
 		} catch (ApronException e) {
@@ -591,7 +651,6 @@ public class NumericalAnalysis extends ForwardBranchedFlowAnalysis<NumericalStat
 			return null;
 		}
 	}
-
 
 	/**
 	 *
@@ -608,54 +667,51 @@ public class NumericalAnalysis extends ForwardBranchedFlowAnalysis<NumericalStat
 		Abstract1 fact = outWrapper.get();
 		Abstract1 factIn = new Abstract1(man, env);
 		Lincons1 c = null;
-		String varLeft = ((Local)left).getName();
+		String varLeft = ((Local) left).getName();
 		Local lhs = (Local) left;
 
-
-		if(right instanceof IntConstant){
-			int x = ((IntConstant)right).value;
-			Linexpr1 e = new Linexpr1(env, new Linterm1[]{}, new MpqScalar(x));
+		if (right instanceof IntConstant) {
+			int x = ((IntConstant) right).value;
+			Linexpr1 e = new Linexpr1(env, new Linterm1[] {}, new MpqScalar(x));
 			logger.info(fact.toString());
-			factIn.assign(man, varLeft, e, fact);
-			if(factIn.isBottom(man)){
-				fact.assign(man, varLeft, e, fact);
-				factIn = fact;
-			}
-			logger.info(left.toString() + " = " + right.toString());
+			factIn = fact.forgetCopy(man, varLeft, false);
 			logger.info(fact.toString());
+			logger.info(factIn.toString());
+			factIn.assign(man, varLeft, e, factIn);
+			logger.info(fact.toString());
+			logger.info(factIn.toString());
 
-		}else if(right instanceof Local){
-			String varRight = ((Local)right).getName();
+		} else if (right instanceof Local) {
+			String varRight = ((Local) right).getName();
 			Linterm1 t = new Linterm1(varRight, new MpqScalar(1));
-			Linexpr1 e = new Linexpr1(env, new Linterm1[]{t}, new MpqScalar(0));
+			Linexpr1 e = new Linexpr1(env, new Linterm1[] { t }, new MpqScalar(0));
 			logger.info(fact.toString());
-
-			fact.forget(man, varLeft, false);
-			factIn.assign(man, varLeft, e, fact);
+			factIn = fact.forgetCopy(man, varLeft, false);
+			factIn.assign(man, varLeft, e, factIn);
 			logger.info(left.toString() + " = " + right.toString());
 			logger.info(factIn.toString());
 
-		}else if(right instanceof BinopExpr){
+		} else if (right instanceof BinopExpr) {
 			BinopExpr binop = (BinopExpr) right;
 			Value op1 = binop.getOp1();
 			Value op2 = binop.getOp2();
 
-			if(right instanceof JAddExpr){
+			if (right instanceof JAddExpr) {
 				logger.info(fact.toString());
-				factIn = getFact(fact, lhs, op1, op2, 1);	
+				factIn = getFact(fact, lhs, op1, op2, 1);
 				logger.info(factIn.toString());
-			} else if(right instanceof JSubExpr){
+			} else if (right instanceof JSubExpr) {
 				logger.info(fact.toString());
-				factIn = getFact(fact, lhs, op1, op2, -1);	
+				factIn = getFact(fact, lhs, op1, op2, -1);
 				logger.info(factIn.toString());
-			} else if(right instanceof JMulExpr){
+			} else if (right instanceof JMulExpr) {
 				factIn = getFactMul(fact, lhs, op1, op2);
 			}
-		}else {
+		} else {
 			logger.info("Other def");
 			Interval interval = new Interval();
 			interval.setTop();
-			factIn = new Abstract1(man, env, new String[] {((Local)left).getName()}, new Interval[]{interval});
+			factIn = new Abstract1(man, env, new String[] { ((Local) left).getName() }, new Interval[] { interval });
 		}
 
 		outWrapper.set(factIn);

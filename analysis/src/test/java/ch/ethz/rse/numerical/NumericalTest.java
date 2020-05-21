@@ -41,7 +41,7 @@ import soot.toolkits.graph.UnitGraph;
 import soot.util.Chain;
 
 public class NumericalTest {
-    String packageName = "ch.ethz.rse.integration.tests.A_Numerical_Test";
+    String packageName = "ch.ethz.rse.integration.tests.Numerical_Test";
     VerifyTask t = new VerifyTask(packageName, VerificationProperty.TRACK_NON_NEGATIVE, true);
     SootClass sc = SootHelper.loadClass(t.getTestClass());
     java.util.List<SootMethod> methods = sc.getMethods();
@@ -98,7 +98,8 @@ public class NumericalTest {
         Lincons1 c2 = analysis.getConstraintBinOp(l2, l3, l4, 1);
         Abstract1 fact = new Abstract1(man, new Lincons1[]{c2});
         //fact.meet(man, c1);
-        
+
+        Linexpr1 e2 = null;
 
 
         //x = 5
@@ -106,24 +107,20 @@ public class NumericalTest {
         System.out.println(wrapper.get().toString());
         analysis.handleDef(wrapper, l3, cons2); 
         t2 = new Linterm1(l2.toString(), new MpqScalar(-1));
-        Linexpr1 e1 = new Linexpr1(env, new Linterm1[]{t2, t4}, new MpqScalar(cons2.value));
+        Linexpr1 e1 = new Linexpr1(env, new Linterm1[]{t3}, new MpqScalar(-cons2.value));
         c1 = new Lincons1(Lincons1.EQ, e1);
-        Linexpr1 e2 = new Linexpr1(env, new Linterm1[]{t3}, new MpqScalar(-cons2.value));
-        c2 = new Lincons1(Lincons1.EQ, e2);
-        Abstract1 expectedFact = new Abstract1(man, new Lincons1[]{c1, c2});
+        Abstract1 expectedFact = new Abstract1(man, new Lincons1[]{c1});
         assertEquals(expectedFact.toString(), wrapper.get().toString());
 
         //x = y
         wrapper = new NumericalStateWrapper(man, fact);
         System.out.println(wrapper.get().toString());
         analysis.handleDef(wrapper, l3, l4);
-        t4 = new Linterm1(l4.toString(), new MpqScalar(2));
-        e1 = new Linexpr1(env, new Linterm1[]{t2, t4}, new MpqScalar(0));
+        t3 = new Linterm1(l3.toString(), new MpqScalar(-1));
+        t4 = new Linterm1(l4.toString(), new MpqScalar(1));
+        e1 = new Linexpr1(env, new Linterm1[]{t3, t4}, new MpqScalar(0));
         c1 = new Lincons1(Lincons1.EQ, e1);
-        t3 = new Linterm1(l3.toString(), new MpqScalar(2));
-        e2 = new Linexpr1(env, new Linterm1[]{t2, t3}, new MpqScalar(0));
-        c2 = new Lincons1(Lincons1.EQ, e2);
-        expectedFact = new Abstract1(man, new Lincons1[]{c1, c2});
+        expectedFact = new Abstract1(man, new Lincons1[]{c1});
         assertEquals(expectedFact.toString(), wrapper.get().toString());
 
         //x = x+1
@@ -134,7 +131,7 @@ public class NumericalTest {
         t2 = new Linterm1(l2.toString(), new MpqScalar(-1));
         t3 = new Linterm1(l3.toString(), new MpqScalar(1));
         t4 = new Linterm1(l4.toString(), new MpqScalar(1));
-        e1 = new Linexpr1(env, new Linterm1[]{t2, t3, t4}, new MpqScalar(-1));
+        e1 = new Linexpr1(env, new Linterm1[]{t2, t3, t4}, new MpqScalar(1));
         c1 = new Lincons1(Lincons1.EQ, e1);
         expectedFact = new Abstract1(man, new Lincons1[]{c1});
         assertEquals(expectedFact.toString(), wrapper.get().toString());
@@ -144,29 +141,24 @@ public class NumericalTest {
         System.out.println(wrapper.get().toString());
         binop = new JAddExpr((soot.Value) l3, (soot.Value) cons1);
         analysis.handleDef(wrapper, l2, binop);
-        t4 = new Linterm1(l4.toString(), new MpqScalar(1));
-        e1 = new Linexpr1(env, new Linterm1[]{t4}, new MpqScalar(-1));
-        c1 = new Lincons1(Lincons1.EQ, e1);
         t2 = new Linterm1(l2.toString(), new MpqScalar(-1));
         t3 = new Linterm1(l3.toString(), new MpqScalar(1));
-        e2 = new Linexpr1(env, new Linterm1[]{t2, t3}, new MpqScalar(1));
-        c2 = new Lincons1(Lincons1.EQ, e2);
-        expectedFact = new Abstract1(man, new Lincons1[]{c1, c2});
+        e1 = new Linexpr1(env, new Linterm1[]{t2, t3}, new MpqScalar(cons1.value));
+        c1 = new Lincons1(Lincons1.EQ, e1);
+        expectedFact = new Abstract1(man, new Lincons1[]{c1});
         assertEquals(expectedFact.toString(), wrapper.get().toString());
 
-        //y = z-x
+        //y = x - z
         wrapper = new NumericalStateWrapper(man, fact);
         System.out.println(wrapper.get().toString());
         binop = new JSubExpr((soot.Value) l4, (soot.Value) l2);
         analysis.handleDef(wrapper, l3, binop);
-        t4 = new Linterm1(l4.toString(), new MpqScalar(1));
         t2 = new Linterm1(l2.toString(), new MpqScalar(-1));
-        e1 = new Linexpr1(env, new Linterm1[]{t2, t4}, new MpqScalar(0));
+        t3 = new Linterm1(l3.toString(), new MpqScalar(-1));
+        t4 = new Linterm1(l4.toString(), new MpqScalar(1));
+        e1 = new Linexpr1(env, new Linterm1[]{t2, t3, t4}, new MpqScalar(0));
         c1 = new Lincons1(Lincons1.EQ, e1);
-        t3 = new Linterm1(l3.toString(), new MpqScalar(1));
-        e2 = new Linexpr1(env, new Linterm1[]{t3}, new MpqScalar(0));
-        c2 = new Lincons1(Lincons1.EQ, e2);
-        expectedFact = new Abstract1(man, new Lincons1[]{c1, c2});
+        expectedFact = new Abstract1(man, new Lincons1[]{c1});
         assertEquals(expectedFact.toString(), wrapper.get().toString());
 
         //x = x+x
@@ -188,9 +180,8 @@ public class NumericalTest {
         System.out.println(wrapper.get().toString());
         binop = new JSubExpr((soot.Value) l2, (soot.Value) l2);
         analysis.handleDef(wrapper, l2, binop);
-        t4 = new Linterm1(l4.toString(), new MpqScalar(1));
-        t3 = new Linterm1(l3.toString(), new MpqScalar(1));
-        e1 = new Linexpr1(env, new Linterm1[]{t3, t4}, new MpqScalar(0));
+        t2 = new Linterm1(l2.toString(), new MpqScalar(1));
+        e1 = new Linexpr1(env, new Linterm1[]{t2}, new MpqScalar(0));
         System.out.println(e1.toString());
         c1 = new Lincons1(Lincons1.EQ, e1);
         expectedFact = new Abstract1(man, new Lincons1[]{c1});
@@ -212,23 +203,21 @@ public class NumericalTest {
 
        
         //c: x-1 = 0
-        //y = x
+        //x = y
         c3 = analysis.getConstraintConditional(l3, cons2, Lincons1.EQ);
         fact2 = new Abstract1(man, new Lincons1[]{c3});
         wrapper = new NumericalStateWrapper(man, fact2);
         System.out.println(wrapper.get().toString());
         analysis.handleDef(wrapper, l3, l2);
         t3 = new Linterm1(l3.toString(), new MpqScalar(1));
-        e1 = new Linexpr1(env, new Linterm1[]{t3}, new MpqScalar(-cons2.value));
+        t2 = new Linterm1(l2.toString(), new MpqScalar(-1));
+        e1 = new Linexpr1(env, new Linterm1[]{t2, t3}, new MpqScalar(0));
         c1 = new Lincons1(Lincons1.EQ, e1);
-        t2 = new Linterm1(l2.toString(), new MpqScalar(1));
-        e2 = new Linexpr1(env, new Linterm1[]{t2}, new MpqScalar(-cons2.value));
-        c2 = new Lincons1(Lincons1.EQ, e2);
-        expectedFact = new Abstract1(man, new Lincons1[]{c1, c2});
+        expectedFact = new Abstract1(man, new Lincons1[]{c1});
         assertEquals(expectedFact.toString(), wrapper.get().toString());
 
         //c: x-1 = 0
-        //x = y
+        //y = x
         c3 = analysis.getConstraintConditional(l3, cons2, Lincons1.EQ);
         fact2 = new Abstract1(man, new Lincons1[]{c3});
         wrapper = new NumericalStateWrapper(man, fact2);

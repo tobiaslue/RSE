@@ -7,7 +7,7 @@ import ch.ethz.rse.TrainStation;
 // TRACK_IN_RANGE SAFE
 // NO_CRASH SAFE
 
-public class Basic_Test_Custom {
+public class Non_Negative_Unsafe {
 	public static void m1(int j) {
 		TrainStation s = new TrainStation(10);
 		if(j >= 0){
