@@ -110,7 +110,7 @@ public class Verifier extends AVerifier {
 			for (TrainStationInitializer s : stations) {
 				Collection<JInvokeStmt> invokes = stationInvoke.get(s);
 
-				for(JInvokeStmt stmt : invokes){
+				for (JInvokeStmt stmt : invokes) {
 					Value par = invokeValue.get(stmt);
 
 					try {
@@ -141,31 +141,33 @@ public class Verifier extends AVerifier {
 
 	@Override
 	public boolean checkTrackInRange() {
-		for(SootMethod m : numericalAnalysis.keySet()){
+		// go through list of invokes for every train station
+		// if new invoke may cause crash => return false
+		for (SootMethod m : numericalAnalysis.keySet()) {
 			NumericalAnalysis analysis = numericalAnalysis.get(m);
 			apron.Manager man = analysis.man;
 			Environment env = analysis.env;
-		
+
 			Collection<TrainStationInitializer> stations = pointsTo.getStationByMethod(m);
 			Multimap<TrainStationInitializer, JInvokeStmt> stationInvoke = analysis.stationInvoke;
 			Map<JInvokeStmt, Abstract1> invokeAbstract = analysis.invokeAbstract;
 			Map<JInvokeStmt, Value> invokeValue = analysis.invokeValue;
 
-			for(TrainStationInitializer s : stations){
+			for (TrainStationInitializer s : stations) {
 				Collection<JInvokeStmt> invokes = stationInvoke.get(s);
 
-				for(JInvokeStmt stmt : invokes){
+				for (JInvokeStmt stmt : invokes) {
 					Value par = invokeValue.get(stmt);
-					
+
 					if (par instanceof Local) {
 						Linterm1 lint = analysis.getTermOfLocal((Local) par, 1);
 						Linexpr1 line = new Linexpr1(env, new Linterm1[] { lint }, new MpqScalar(-s.nTracks));
 						Lincons1 c = new Lincons1(Lincons1.SUP, line);
-						logger.info(c.toString());
+						//logger.info(c.toString());
 						try {
 							Abstract1 factIn = invokeAbstract.get(stmt);
 							factIn.meet(man, c);
-							logger.info(factIn.toString());
+							//logger.info(factIn.toString());
 							if (!factIn.isBottom(man)) {
 								return false;
 							}
@@ -186,13 +188,6 @@ public class Verifier extends AVerifier {
 
 	@Override
 	public boolean checkNoCrash() {
-		List<SootMethod> methods = c.getMethods();
-		SootMethod m = methods.get(1);
-		UnitGraph g = SootHelper.getUnitGraph(m);
-		NumericalAnalysis analysis = new NumericalAnalysis(m, g, pointsTo);
-
-		apron.Manager man = analysis.man;
-		Environment env = analysis.env;
 
 		// Multimap<TrainStationInitializer, InvokeExpr> stationInvoke=
 		// HashMultimap.create();
@@ -200,9 +195,82 @@ public class Verifier extends AVerifier {
 		// Abstract1>();
 		// Map<InvokeExpr, Value> invokeValue = new HashMap<InvokeExpr, Value>();
 
-		Multimap<TrainStationInitializer, JInvokeStmt> stationInvoke = analysis.stationInvoke;
-		Map<JInvokeStmt, Abstract1> invokeAbstract = analysis.invokeAbstract;
-		Map<JInvokeStmt, Value> invokeValue = analysis.invokeValue;
+		// Multimap<TrainStationInitializer, JInvokeStmt> stationInvoke =
+		// analysis.stationInvoke;
+		// Map<JInvokeStmt, Abstract1> invokeAbstract = analysis.invokeAbstract;
+		// Map<JInvokeStmt, Value> invokeValue = analysis.invokeValue;
+
+		for (SootMethod m : numericalAnalysis.keySet()) {
+			NumericalAnalysis analysis = numericalAnalysis.get(m);
+			apron.Manager man = analysis.man;
+			Environment env = analysis.env;
+
+			Collection<TrainStationInitializer> stations = pointsTo.getStationByMethod(m);
+			Map<JInvokeStmt, Abstract1> invokeAbstract = analysis.invokeAbstract;
+			Map<JInvokeStmt, Value> invokeValue = analysis.invokeValue;
+
+			for (TrainStationInitializer station : stations) {
+				List<JInvokeStmt> invokes = station.getInvokes();
+
+				int length = invokes.size();
+				for (int i = 0; i < length - 1; i++) {
+					JInvokeStmt jOld = invokes.get(i);
+					JInvokeStmt jNew = invokes.get(i + 1);
+
+					Abstract1 oldFact = invokeAbstract.get(jOld);
+					Abstract1 newFact = invokeAbstract.get(jNew);
+					Value newValue = invokeValue.get(jNew);
+
+
+
+					if (newValue instanceof IntConstant) {
+						int x = ((IntConstant) newValue).value;
+						Linterm1 lt = new Linterm1(station.getVar(), new MpqScalar(-1));
+						Linexpr1 e = new Linexpr1(env, new Linterm1[] { lt }, new MpqScalar(x));
+						Lincons1 c = new Lincons1(Lincons1.EQ, e);
+						try {
+							newFact.forget(man, station.getVar(), false);
+							oldFact.meet(man, newFact);
+							oldFact.meet(man, c);
+							// logger.info("Old Fact " + oldFact.toString());
+							// logger.info("New Value " + newValue.toString());
+							// logger.info("Meet " + oldFact.toString());
+							if (!oldFact.isBottom(man)) {
+								return false;
+							}
+						} catch (ApronException e1) {
+							// TODO Auto-generated catch block
+							e1.printStackTrace();
+						}
+
+					} else if (newValue instanceof Local) {
+						try {
+							Interval interval = newFact.getBound(man, newValue.toString());
+							logger.info("Interval " + interval.toString());
+							Linterm1 lt = new Linterm1(station.getVar(), new MpqScalar(-1));
+							Linexpr1 e = new Linexpr1(env, new Linterm1[]{lt}, interval);	
+							Lincons1 c = new Lincons1(Lincons1.EQ, e);
+							newFact.forget(man, station.getVar(), false);
+							oldFact.meet(man, newFact);
+							oldFact.meet(man, c);
+							logger.info("Old Fact " + oldFact.toString());
+							logger.info("New Value " + newValue.toString());
+							logger.info("C " + c.toString());
+							logger.info("Meet " + oldFact.toString());
+							if (!oldFact.isBottom(man)) {
+								return false;
+							}
+						} catch (ApronException e) {
+							// TODO Auto-generated catch block
+							e.printStackTrace();
+						}
+						
+					}
+
+				}
+			}
+
+		}
 
 		// for (Unit u : m.getActiveBody().getUnits()) {
 		// NumericalStateWrapper before = analysis.getFlowBefore(u);
@@ -235,130 +303,132 @@ public class Verifier extends AVerifier {
 		// }
 		// }
 
-		Collection<TrainStationInitializer> stations = pointsTo.getStationByMethod(m);
-		logger.info(stationInvoke.toString());
-		logger.info(invokeAbstract.toString());
-		logger.info(invokeValue.toString());
-		if (stations.isEmpty()) {
-			return true;
-		}
-		for (TrainStationInitializer s : stations) {
-			Collection<JInvokeStmt> invokes = stationInvoke.get(s);
+		// Start here
+		// Collection<TrainStationInitializer> stations =
+		// pointsTo.getStationByMethod(m);
+		// logger.info(stationInvoke.toString());
+		// logger.info(invokeAbstract.toString());
+		// logger.info(invokeValue.toString());
+		// if (stations.isEmpty()) {
+		// return true;
+		// }
+		// for (TrainStationInitializer s : stations) {
+		// Collection<JInvokeStmt> invokes = stationInvoke.get(s);
 
-			logger.info(invokes.toString());
+		// logger.info(invokes.toString());
 
-			Linterm1 tv = null;
-			Linterm1 tu = null;
-			Linexpr1 e = null;
-			Lincons1 c = null;
-			int x = 0;
-			int y = 0;
+		// Linterm1 tv = null;
+		// Linterm1 tu = null;
+		// Linexpr1 e = null;
+		// Lincons1 c = null;
+		// int x = 0;
+		// int y = 0;
 
-			for (JInvokeStmt i1 : invokes) {
-				for (JInvokeStmt i2 : invokes) {
-					if (i1.equals(i2)) {
-						logger.info("euqal");
-						continue;
-					}
+		// for (JInvokeStmt i1 : invokes) {
+		// for (JInvokeStmt i2 : invokes) {
+		// if (i1.equals(i2)) {
+		// logger.info("euqal");
+		// continue;
+		// }
 
-					Value v = invokeValue.get(i1);
-					Value u = invokeValue.get(i2);
-					if (v instanceof Local && u instanceof Local) {
-						tv = analysis.getTermOfLocal(v, 1);
-						tu = analysis.getTermOfLocal(u, -1);
-						e = new Linexpr1(env, new Linterm1[] { tv, tu }, new MpqScalar(0));
-						c = new Lincons1(Lincons1.EQ, e);
+		// Value v = invokeValue.get(i1);
+		// Value u = invokeValue.get(i2);
+		// if (v instanceof Local && u instanceof Local) {
+		// tv = analysis.getTermOfLocal(v, 1);
+		// tu = analysis.getTermOfLocal(u, -1);
+		// e = new Linexpr1(env, new Linterm1[] { tv, tu }, new MpqScalar(0));
+		// c = new Lincons1(Lincons1.EQ, e);
 
-						Abstract1 fact1 = invokeAbstract.get(i1);
-						Abstract1 fact2 = invokeAbstract.get(i2);
-						logger.info(v.toString() + " " + fact1.toString());
-						logger.info(u.toString() + " " + fact2.toString());
+		// Abstract1 fact1 = invokeAbstract.get(i1);
+		// Abstract1 fact2 = invokeAbstract.get(i2);
+		// logger.info(v.toString() + " " + fact1.toString());
+		// logger.info(u.toString() + " " + fact2.toString());
 
-						try {
-							Abstract1 join = fact1.meetCopy(man, fact2);
-							logger.info(join.toString());
+		// try {
+		// Abstract1 join = fact1.meetCopy(man, fact2);
+		// logger.info(join.toString());
 
-							if (v.equals(u)) {
-								logger.info("v equals u");
-								if (!join.isBottom(man)) {
-									return false;
-								}
-							} else {
-								join.meet(man, c);
-								logger.info(join.toString());
+		// if (v.equals(u)) {
+		// logger.info("v equals u");
+		// if (!join.isBottom(man)) {
+		// return false;
+		// }
+		// } else {
+		// join.meet(man, c);
+		// logger.info(join.toString());
 
-								if (!join.isBottom(man)) {
-									return false;
-								}
-							}
+		// if (!join.isBottom(man)) {
+		// return false;
+		// }
+		// }
 
-						} catch (ApronException e1) {
-							// TODO Auto-generated catch block
-							logger.info("cannot join");
-							e1.printStackTrace();
-						}
+		// } catch (ApronException e1) {
+		// // TODO Auto-generated catch block
+		// logger.info("cannot join");
+		// e1.printStackTrace();
+		// }
 
-					} else if (v instanceof Local || u instanceof Local) {
-						if (v instanceof Local) {
-							tv = analysis.getTermOfLocal(v, 1);
-							x = ((IntConstant) u).value;
-						} else {
-							tv = analysis.getTermOfLocal(u, 1);
-							x = ((IntConstant) v).value;
-						}
-						e = new Linexpr1(env, new Linterm1[] { tv }, new MpqScalar(-x));
-						c = new Lincons1(Lincons1.EQ, e);
+		// } else if (v instanceof Local || u instanceof Local) {
+		// if (v instanceof Local) {
+		// tv = analysis.getTermOfLocal(v, 1);
+		// x = ((IntConstant) u).value;
+		// } else {
+		// tv = analysis.getTermOfLocal(u, 1);
+		// x = ((IntConstant) v).value;
+		// }
+		// e = new Linexpr1(env, new Linterm1[] { tv }, new MpqScalar(-x));
+		// c = new Lincons1(Lincons1.EQ, e);
 
-						Abstract1 fact1 = invokeAbstract.get(i1);
-						Abstract1 fact2 = invokeAbstract.get(i2);
+		// Abstract1 fact1 = invokeAbstract.get(i1);
+		// Abstract1 fact2 = invokeAbstract.get(i2);
 
-						logger.info(fact1.toString());
-						logger.info(fact2.toString());
+		// logger.info(fact1.toString());
+		// logger.info(fact2.toString());
 
-						try {
-							Abstract1 join = fact1.meetCopy(man, fact2);
-							logger.info(join.toString());
+		// try {
+		// Abstract1 join = fact1.meetCopy(man, fact2);
+		// logger.info(join.toString());
 
-							join.meet(man, c);
-							logger.info(join.toString());
+		// join.meet(man, c);
+		// logger.info(join.toString());
 
-							if (!join.isBottom(man)) {
-								return false;
-							}
-						} catch (ApronException e1) {
-							// TODO Auto-generated catch block
-							logger.info("cannot join");
-							e1.printStackTrace();
-						}
-					} else {
-						Abstract1 fact1 = invokeAbstract.get(i1);
-						Abstract1 fact2 = invokeAbstract.get(i2);
-						x = ((IntConstant) v).value;
-						y = ((IntConstant) u).value;
+		// if (!join.isBottom(man)) {
+		// return false;
+		// }
+		// } catch (ApronException e1) {
+		// // TODO Auto-generated catch block
+		// logger.info("cannot join");
+		// e1.printStackTrace();
+		// }
+		// } else {
+		// Abstract1 fact1 = invokeAbstract.get(i1);
+		// Abstract1 fact2 = invokeAbstract.get(i2);
+		// x = ((IntConstant) v).value;
+		// y = ((IntConstant) u).value;
 
-						logger.info(fact1.toString());
-						logger.info(fact2.toString());
+		// logger.info(fact1.toString());
+		// logger.info(fact2.toString());
 
-						try {
-							Abstract1 join = fact1.meetCopy(man, fact2);
-							logger.info(join.toString());
+		// try {
+		// Abstract1 join = fact1.meetCopy(man, fact2);
+		// logger.info(join.toString());
 
-							if (!join.isBottom(man)) {
-								if (x == y) {
-									return false;
-								}
-							}
-						} catch (ApronException e1) {
-							// TODO Auto-generated catch block
-							logger.info("cannot join");
-							e1.printStackTrace();
-						}
+		// if (!join.isBottom(man)) {
+		// if (x == y) {
+		// return false;
+		// }
+		// }
+		// } catch (ApronException e1) {
+		// // TODO Auto-generated catch block
+		// logger.info("cannot join");
+		// e1.printStackTrace();
+		// }
 
-					}
+		// }
 
-				}
-			}
-		}
+		// }
+		// }
+		// }
 		return true;
 	}
 

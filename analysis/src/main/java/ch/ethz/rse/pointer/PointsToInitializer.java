@@ -96,7 +96,7 @@ public class PointsToInitializer {
 						Node node = nodes.iterator().next();
 						Value arg = e.getArg(0);
 						int x = ((IntConstant) arg).value;
-						TrainStationInitializer t = new TrainStationInitializer(s, left.hashCode(), x);
+						TrainStationInitializer t = new TrainStationInitializer(s, left.hashCode(), x, left.getValue().toString());
 						perMethod.put(method, t);
 						initializers.put(node, t);
 					}			

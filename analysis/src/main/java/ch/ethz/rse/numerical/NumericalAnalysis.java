@@ -81,7 +81,6 @@ import soot.jimple.toolkits.annotation.logic.Loop;
 import soot.toolkits.graph.LoopNestTree;
 import soot.toolkits.graph.UnitGraph;
 import soot.toolkits.scalar.ForwardBranchedFlowAnalysis;
-import soot.util.HashMultiMap;
 
 public class NumericalAnalysis extends ForwardBranchedFlowAnalysis<NumericalStateWrapper> {
 
@@ -137,8 +136,8 @@ public class NumericalAnalysis extends ForwardBranchedFlowAnalysis<NumericalStat
 
 		// perform analysis by calling into super-class
 		logger.info("Analyzing {} in {}", method.getName(), method.getDeclaringClass().getName());
+		
 		doAnalysis();
-
 	}
 
 	// Use this constructor for tests....
@@ -209,15 +208,20 @@ public class NumericalAnalysis extends ForwardBranchedFlowAnalysis<NumericalStat
 			logger.info("loop Head: " + Integer.toString(loopHeads.get(succNode).value));
 		}
 		IntegerWrapper count = loopHeads.get(succNode);
-
-		if (count.value >= WIDENING_THRESHOLD) {
-			w3_new = w1.widen(w2);
-			w3.set(w3_new.get());
+		
+		if (count != null) {
+			if (count.value >= WIDENING_THRESHOLD) {
+				w3_new = w1.widen(w2);
+				w3.set(w3_new.get());
+			} else {
+				count.value++;
+				w3_new = w1.join(w2);
+				w3.set(w3_new.get());
+				loopHeadState.put(succNode, w3_new);
+			}
 		} else {
-			count.value++;
 			w3_new = w1.join(w2);
 			w3.set(w3_new.get());
-			loopHeadState.put(succNode, w3_new);
 		}
 
 		logger.info("W1: " + w1.toString());
@@ -395,6 +399,9 @@ public class NumericalAnalysis extends ForwardBranchedFlowAnalysis<NumericalStat
 	protected void flowThrough(NumericalStateWrapper inWrapper, Unit op, List<NumericalStateWrapper> fallOutWrappers,
 			List<NumericalStateWrapper> branchOutWrappers) {
 		logger.debug(inWrapper + " " + op + " => ?");
+		// for(Var v: env.getIntVars()){
+		// 	logger.info(v.toString());
+		// }
 		Stmt s = (Stmt) op;
 		// wrapper for state after running op, assuming we move to the next statement
 		assert fallOutWrappers.size() <= 1;
@@ -436,6 +443,13 @@ public class NumericalAnalysis extends ForwardBranchedFlowAnalysis<NumericalStat
 				if (left.getType() instanceof RefType) {
 					// assignments to references are handled by pointer analysis
 					// no action necessary
+
+					if(left.toString().contains("$r")){
+						Abstract1 fact = fallOutWrapper.get();
+						Linexpr1 e = new Linexpr1(env, new Linterm1[]{}, new MpqScalar(-1));
+						fact.assign(man, left.toString(), e, fact);
+						fallOutWrapper.set(fact);
+					}
 				} else {
 					// handle assignment
 					handleDef(fallOutWrapper, left, right);
@@ -500,15 +514,39 @@ public class NumericalAnalysis extends ForwardBranchedFlowAnalysis<NumericalStat
 		}
 	}
 
+	public int scalarToInt(Scalar x){
+		double[] r = {0};
+		x.toDouble(r, 1);
+		return (int) r[0];
+	}
+
+	public Interval joinIntervals(Interval i1, Interval i2){
+		int max = 0;
+		int min = 0;
+		if(scalarToInt(i1.sup) > scalarToInt(i2.sup)){
+			max = scalarToInt(i1.sup);
+		} else{
+			max = scalarToInt(i2.sup);
+		}
+
+		if(scalarToInt(i1.inf) < scalarToInt(i2.inf)){
+			min = scalarToInt(i1.inf);
+		} else{
+			min = scalarToInt(i2.inf);
+		}
+
+		Interval i = new Interval(min, max);
+		return i;
+	}
+
 	public void handleInvoke(JInvokeStmt jInvStmt1, NumericalStateWrapper fallOutWrapper) throws ApronException {
+	
 		JInvokeStmt jInvStmt = (JInvokeStmt) jInvStmt1.clone();
-		
-		invokeAbstract.put(jInvStmt, fallOutWrapper.copy().get());
+
 
 		InvokeExpr e = jInvStmt.getInvokeExpr();
 		Value par = e.getUseBoxes().get(0).getValue();
-		invokeValue.put(jInvStmt, par);
-		
+
 		List<ValueBox> boxes = e.getUseBoxes();
 		JimpleLocalBox left = null;
 		for (ValueBox b : boxes) {
@@ -520,9 +558,39 @@ public class NumericalAnalysis extends ForwardBranchedFlowAnalysis<NumericalStat
 		Local base = (Local) left.getValue();
 		List<TrainStationInitializer> stations = pointsTo.pointsTo(base);
 		logger.info(stations.toString());
+		
 		for (TrainStationInitializer t : stations) {
 			stationInvoke.put(t, jInvStmt);
+			if(par instanceof IntConstant){
+				Abstract1 fact = fallOutWrapper.get();
+				int x = ((IntConstant) par).value;
+				Interval i = new Interval(x, x);
+				Interval stationValues = fact.getBound(man, t.getVar());
+				Interval newStationValues = joinIntervals(i, stationValues);
+				Linterm1 l = new Linterm1(t.getVar(), new MpqScalar(-1));
+				Linexpr1 ex = new Linexpr1(env, new Linterm1[]{l}, newStationValues);
+				Lincons1 c = new Lincons1(Lincons1.EQ, ex);
+				fact.forget(man, t.getVar(), false);
+				fact.meet(man, new Lincons1[]{c});
+				fallOutWrapper.set(fact);
+				t.addInvoke(jInvStmt);
+			}else if(par instanceof Local){
+				Abstract1 fact = fallOutWrapper.get();
+				Interval i = fact.getBound(man, par.toString());
+				Interval stationValues = fact.getBound(man, t.getVar());
+				Interval newStationValues = joinIntervals(i, stationValues);
+				Linterm1 l = new Linterm1(t.getVar(), new MpqScalar(-1));
+				Linexpr1 ex = new Linexpr1(env, new Linterm1[]{l}, newStationValues);
+				Lincons1 c = new Lincons1(Lincons1.EQ, ex);
+				fact.forget(man, t.getVar(), false);
+				fact.meet(man, new Lincons1[]{c});
+				fallOutWrapper.set(fact);
+				t.addInvoke(jInvStmt);
+			}
 		}
+
+		invokeAbstract.put(jInvStmt, fallOutWrapper.copy().get());
+		invokeValue.put(jInvStmt, par);
 
 	}
 
@@ -601,8 +669,11 @@ public class NumericalAnalysis extends ForwardBranchedFlowAnalysis<NumericalStat
 	public Abstract1 getFactMul(Abstract1 fact, Local lhs, Value op1, Value op2) {
 		String varLeft = lhs.getName();
 		try {
+			logger.info("TRY");
 			Abstract1 factOut = new Abstract1(man, env);
 			if (op1 instanceof Local && op2 instanceof Local) {
+				logger.info("2 local");
+
 				Local op1Local = (Local) op1;
 				Local op2Local = (Local) op2;
 
@@ -612,11 +683,26 @@ public class NumericalAnalysis extends ForwardBranchedFlowAnalysis<NumericalStat
 					Linexpr1 e = new Linexpr1(env, new Linterm1[] { t }, new MpqScalar(0));
 					factOut = fact.substituteCopy(man, varLeft, e, factOut);
 				} else {
+					logger.info("not equal");
+
 					Interval i = fact.getBound(man, op1Local.getName());
+					logger.info("interval");
+
 					Linterm1 t = new Linterm1(op2Local.getName(), i);
-					Linexpr1 e = new Linexpr1(env, new Linterm1[] { t }, new MpqScalar(0));
+					logger.info("linterm");
+
+					Linterm1 leftTerm = new Linterm1(varLeft, new MpqScalar(-1));
+
+					Linexpr1 e = new Linexpr1(env, new Linterm1[] { t, leftTerm }, new MpqScalar(0));
+					
+					Lincons1 c = new Lincons1(Lincons1.EQ, e);
+					logger.info("linexpr");
 					factOut = fact.forgetCopy(man, varLeft, false);
-					factOut.assign(man, varLeft, e, factOut);
+					logger.info("forget");
+
+					factOut.meet(man, c);
+					logger.info("assign");
+
 				}
 			} else if (op1 instanceof Local || op2 instanceof Local) {
 				Local l = null;
@@ -692,6 +778,7 @@ public class NumericalAnalysis extends ForwardBranchedFlowAnalysis<NumericalStat
 			logger.info(factIn.toString());
 
 		} else if (right instanceof BinopExpr) {
+			logger.info("BINOP");
 			BinopExpr binop = (BinopExpr) right;
 			Value op1 = binop.getOp1();
 			Value op2 = binop.getOp2();
@@ -705,6 +792,7 @@ public class NumericalAnalysis extends ForwardBranchedFlowAnalysis<NumericalStat
 				factIn = getFact(fact, lhs, op1, op2, -1);
 				logger.info(factIn.toString());
 			} else if (right instanceof JMulExpr) {
+				logger.info("MUL");
 				factIn = getFactMul(fact, lhs, op1, op2);
 			}
 		} else {

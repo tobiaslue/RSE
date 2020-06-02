@@ -5,7 +5,7 @@ import ch.ethz.rse.TrainStation;
 // expected results:
 // TRACK_NON_NEGATIVE SAFE
 // TRACK_IN_RANGE SAFE
-// NO_CRASH SAFE
+// NO_CRASH UNSAFE
 
 public class Numerical_Test {
         public static void m1(int j, int k, int l) {
@@ -13,6 +13,7 @@ public class Numerical_Test {
                 TrainStation t = new TrainStation(10);
                 
                 if (j == k) {
+                        t = s;
                         j = 1;
                         l = 3;
                         k = 5;
@@ -26,7 +27,7 @@ public class Numerical_Test {
 
 
                 t.arrive(j);
-                t.arrive(k);
                 t.arrive(l);
+                t.arrive(k);
         }
 }

@@ -55,6 +55,8 @@ public class EnvironmentGenerator {
 		for (Local l : locals) {
 			if(SootHelper.isIntValue(l)){
 				ints.add(l.getName());
+			} else{
+				ints.add(l.getName());
 			}
 		}
 		
