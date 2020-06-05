@@ -154,20 +154,20 @@ public class Verifier extends AVerifier {
 			Map<JInvokeStmt, Value> invokeValue = analysis.invokeValue;
 
 			for (TrainStationInitializer s : stations) {
-				Collection<JInvokeStmt> invokes = stationInvoke.get(s);
+				Collection<JInvokeStmt> invokes = s.getInvokes();
 
 				for (JInvokeStmt stmt : invokes) {
 					Value par = invokeValue.get(stmt);
 
 					if (par instanceof Local) {
 						Linterm1 lint = analysis.getTermOfLocal((Local) par, 1);
-						Linexpr1 line = new Linexpr1(env, new Linterm1[] { lint }, new MpqScalar(-s.nTracks));
+						Linexpr1 line = new Linexpr1(env, new Linterm1[] { lint }, new MpqScalar(-s.nTracks + 1));
 						Lincons1 c = new Lincons1(Lincons1.SUP, line);
-						//logger.info(c.toString());
+						logger.info(c.toString());
 						try {
 							Abstract1 factIn = invokeAbstract.get(stmt);
 							factIn.meet(man, c);
-							//logger.info(factIn.toString());
+							logger.info(factIn.toString());
 							if (!factIn.isBottom(man)) {
 								return false;
 							}
@@ -176,7 +176,7 @@ public class Verifier extends AVerifier {
 						}
 					} else if (par instanceof IntConstant) {
 						int x = ((IntConstant) par).value;
-						if (x > s.nTracks) {
+						if (x > s.nTracks-1) {
 							return false;
 						}
 					}
@@ -188,17 +188,6 @@ public class Verifier extends AVerifier {
 
 	@Override
 	public boolean checkNoCrash() {
-
-		// Multimap<TrainStationInitializer, InvokeExpr> stationInvoke=
-		// HashMultimap.create();
-		// Map<InvokeExpr, Abstract1> invokeAbstract = new HashMap<InvokeExpr,
-		// Abstract1>();
-		// Map<InvokeExpr, Value> invokeValue = new HashMap<InvokeExpr, Value>();
-
-		// Multimap<TrainStationInitializer, JInvokeStmt> stationInvoke =
-		// analysis.stationInvoke;
-		// Map<JInvokeStmt, Abstract1> invokeAbstract = analysis.invokeAbstract;
-		// Map<JInvokeStmt, Value> invokeValue = analysis.invokeValue;
 
 		for (SootMethod m : numericalAnalysis.keySet()) {
 			NumericalAnalysis analysis = numericalAnalysis.get(m);
@@ -271,164 +260,6 @@ public class Verifier extends AVerifier {
 			}
 
 		}
-
-		// for (Unit u : m.getActiveBody().getUnits()) {
-		// NumericalStateWrapper before = analysis.getFlowBefore(u);
-		// Abstract1 factIn = before.get();
-		// if (u instanceof JInvokeStmt) {
-		// InvokeExpr e = ((JInvokeStmt) u).getInvokeExpr();
-		// Value par = ((ValueBox) e.getUseBoxes().get(0)).getValue();
-		// logger.info(e.getMethod().getName());
-		// if (e.getMethod().getName().equals("arrive")) {
-		// logger.info("arrive");
-		// logger.info(e.toString());
-		// List<ValueBox> boxes = e.getUseBoxes();
-		// JimpleLocalBox left = null;
-
-		// for (ValueBox b : boxes) {
-		// if (b instanceof JimpleLocalBox) {
-		// left = (JimpleLocalBox) b;
-		// }
-		// }
-		// Local base = (Local) left.getValue();
-		// List<TrainStationInitializer> stations = pointsTo.pointsTo(base);
-		// logger.info(stations.toString());
-		// for (TrainStationInitializer t : stations) {
-		// stationInvoke.put(t, e);
-		// invokeAbstract.put(e, before.get());
-		// invokeValue.put(e, par);
-		// }
-
-		// }
-		// }
-		// }
-
-		// Start here
-		// Collection<TrainStationInitializer> stations =
-		// pointsTo.getStationByMethod(m);
-		// logger.info(stationInvoke.toString());
-		// logger.info(invokeAbstract.toString());
-		// logger.info(invokeValue.toString());
-		// if (stations.isEmpty()) {
-		// return true;
-		// }
-		// for (TrainStationInitializer s : stations) {
-		// Collection<JInvokeStmt> invokes = stationInvoke.get(s);
-
-		// logger.info(invokes.toString());
-
-		// Linterm1 tv = null;
-		// Linterm1 tu = null;
-		// Linexpr1 e = null;
-		// Lincons1 c = null;
-		// int x = 0;
-		// int y = 0;
-
-		// for (JInvokeStmt i1 : invokes) {
-		// for (JInvokeStmt i2 : invokes) {
-		// if (i1.equals(i2)) {
-		// logger.info("euqal");
-		// continue;
-		// }
-
-		// Value v = invokeValue.get(i1);
-		// Value u = invokeValue.get(i2);
-		// if (v instanceof Local && u instanceof Local) {
-		// tv = analysis.getTermOfLocal(v, 1);
-		// tu = analysis.getTermOfLocal(u, -1);
-		// e = new Linexpr1(env, new Linterm1[] { tv, tu }, new MpqScalar(0));
-		// c = new Lincons1(Lincons1.EQ, e);
-
-		// Abstract1 fact1 = invokeAbstract.get(i1);
-		// Abstract1 fact2 = invokeAbstract.get(i2);
-		// logger.info(v.toString() + " " + fact1.toString());
-		// logger.info(u.toString() + " " + fact2.toString());
-
-		// try {
-		// Abstract1 join = fact1.meetCopy(man, fact2);
-		// logger.info(join.toString());
-
-		// if (v.equals(u)) {
-		// logger.info("v equals u");
-		// if (!join.isBottom(man)) {
-		// return false;
-		// }
-		// } else {
-		// join.meet(man, c);
-		// logger.info(join.toString());
-
-		// if (!join.isBottom(man)) {
-		// return false;
-		// }
-		// }
-
-		// } catch (ApronException e1) {
-		// // TODO Auto-generated catch block
-		// logger.info("cannot join");
-		// e1.printStackTrace();
-		// }
-
-		// } else if (v instanceof Local || u instanceof Local) {
-		// if (v instanceof Local) {
-		// tv = analysis.getTermOfLocal(v, 1);
-		// x = ((IntConstant) u).value;
-		// } else {
-		// tv = analysis.getTermOfLocal(u, 1);
-		// x = ((IntConstant) v).value;
-		// }
-		// e = new Linexpr1(env, new Linterm1[] { tv }, new MpqScalar(-x));
-		// c = new Lincons1(Lincons1.EQ, e);
-
-		// Abstract1 fact1 = invokeAbstract.get(i1);
-		// Abstract1 fact2 = invokeAbstract.get(i2);
-
-		// logger.info(fact1.toString());
-		// logger.info(fact2.toString());
-
-		// try {
-		// Abstract1 join = fact1.meetCopy(man, fact2);
-		// logger.info(join.toString());
-
-		// join.meet(man, c);
-		// logger.info(join.toString());
-
-		// if (!join.isBottom(man)) {
-		// return false;
-		// }
-		// } catch (ApronException e1) {
-		// // TODO Auto-generated catch block
-		// logger.info("cannot join");
-		// e1.printStackTrace();
-		// }
-		// } else {
-		// Abstract1 fact1 = invokeAbstract.get(i1);
-		// Abstract1 fact2 = invokeAbstract.get(i2);
-		// x = ((IntConstant) v).value;
-		// y = ((IntConstant) u).value;
-
-		// logger.info(fact1.toString());
-		// logger.info(fact2.toString());
-
-		// try {
-		// Abstract1 join = fact1.meetCopy(man, fact2);
-		// logger.info(join.toString());
-
-		// if (!join.isBottom(man)) {
-		// if (x == y) {
-		// return false;
-		// }
-		// }
-		// } catch (ApronException e1) {
-		// // TODO Auto-generated catch block
-		// logger.info("cannot join");
-		// e1.printStackTrace();
-		// }
-
-		// }
-
-		// }
-		// }
-		// }
 		return true;
 	}
 

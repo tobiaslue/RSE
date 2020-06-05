@@ -77,7 +77,46 @@ public class NumericalTest {
         }
         return start;
     }
+   
+    
+	public Lincons1 getConstraintBinOp(soot.Value lhs, soot.Value op1, soot.Value op2, int operation) {
+		Linexpr1 e = null;
+		Lincons1 c = null;
+		Linterm1 lLeft = analysis.getTermOfLocal(lhs, -1);
+		Linterm1 lOp1 = null;
+		Linterm1 lOp2 = null;
+		int x = 0;
+		int y = 0;
 
+		if (op1 instanceof Local && op2 instanceof Local) { // Assignment to Binop
+			lOp1 = analysis.getTermOfLocal(op1, 1);
+			if (op1.equals(op2)) {
+				lOp2 = analysis.getTermOfLocal(op2, 2 * operation);
+				e = new Linexpr1(env, new Linterm1[] { lLeft, lOp2 }, new MpqScalar(0));
+			} else {
+				lOp2 = analysis.getTermOfLocal(op2, operation);
+				e = new Linexpr1(env, new Linterm1[] { lLeft, lOp1, lOp2 }, new MpqScalar(0));
+			}
+		} else if (op1 instanceof Local || op2 instanceof Local) {
+			if (op1 instanceof Local) {
+				lOp1 = analysis.getTermOfLocal(op1, 1);
+				x = ((IntConstant) op2).value;
+			} else {
+				lOp1 = analysis.getTermOfLocal(op2, operation);
+				x = operation * ((IntConstant) op1).value;
+			}
+			e = new Linexpr1(env, new Linterm1[] { lLeft, lOp1 }, new MpqScalar(operation * x));
+		} else {
+			x = ((IntConstant) op1).value;
+			y = ((IntConstant) op2).value;
+			e = new Linexpr1(env, new Linterm1[] { lLeft }, new MpqScalar(x + operation * y));
+		}
+
+		c = new Lincons1(Lincons1.EQ, e);
+		return c;
+	}
+
+	
     @Test
     public void testHandleDef() throws ApronException {
         Local l1 = locals.getFirst();
@@ -95,7 +134,7 @@ public class NumericalTest {
 
 
         Lincons1 c1 = analysis.getConstraintConditional(l3, cons2, Lincons1.EQ);
-        Lincons1 c2 = analysis.getConstraintBinOp(l2, l3, l4, 1);
+        Lincons1 c2 = getConstraintBinOp(l2, l3, l4, 1);
         Abstract1 fact = new Abstract1(man, new Lincons1[]{c2});
         //fact.meet(man, c1);
 
@@ -279,7 +318,7 @@ public class NumericalTest {
 
 
     // @Test
-    // public void test_getTermOfLocal() {
+    // public void test_analysis.getTermOfLocal() {
     //     Local l = locals.getFirst();
     //     String name = l.getName();
     //     Linterm1 term = analysis.getTermOfLocal(l, 1);
