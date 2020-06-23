@@ -1,0 +1,6 @@
+correct        81.000000
+imprecise      10.000000
+unsound         0.000000
+error          13.000000
+coverage        0.820553
+total_score    86.000000
